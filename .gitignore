@@ -1,0 +1,4 @@
+*.[aeiou]
+*.out
+
+build/
