@@ -73,7 +73,7 @@ void Lexer::tokenize(const std::string& line) {
     }
   }
   PushText();
-  FormatCorrections();
+  FormatCorrectionInit();
 }
 
 Tokens Lexer::getTokens() {
@@ -104,27 +104,29 @@ std::string Lexer::StrCreat(const std::string& s, int n) {
 }
 
 void Lexer::ClearStack() {
-  while (!syntaxStack.empty()) {
-    syntaxStack.pop_back();
+  while (!syntaxStack->empty()) {
+    syntaxStack->pop_back();
   }
 }
 
 bool Lexer::ToPop(const Token& token) {
   // std::cout << syntaxStack.front().marker << " : " << token.second << "\n";
-  return (!syntaxStack.empty() && syntaxStack.front().marker == token.second);
+  return (!syntaxStack->empty() && syntaxStack->front().marker == token.second);
 }
 
-void Lexer::FormatCorrections() {
-  int i = -1;
-  int correction = 0;
+void Lexer::FormatCorrectionInit() {
+  int index = -1;
+  correction = 0;
+  std::deque<Stack> syntaxStack;
+  this->syntaxStack = &syntaxStack;
   for (const auto& token : tokens) {
-    i++;
+    index++;
     if ((token.first < (TokenType)6 && token.first != (TokenType)0) ||
         token.first == TokenType::TEXT) {
       continue;
     }
     if (!ToPop(token)) {
-      syntaxStack.push_front({token.second, i, true});
+      syntaxStack.push_front({token.second, index, true});
     } else {
       syntaxStack.pop_front();
     }
@@ -133,90 +135,90 @@ void Lexer::FormatCorrections() {
     return;
   }
 
-  FormatCorrections(syntaxStack, correction);
+  FormatCorrection();
 }
 
-void Lexer::FormatCorrections(std::deque<Stack>& syntaxStack, int& correction) {
-  enum LastConsumed { TOS, TOSm1, NONE };
+void Lexer::FormatCorrection() {
+  enum LastConsumed { Top, Topm1, NONE };
   std::deque<Stack> backupStack;
   LastConsumed lastConsumed = LastConsumed::NONE;
-  while (!syntaxStack.empty() && syntaxStack.size() >= 2) {
+  while (!syntaxStack->empty() && syntaxStack->size() >= 2) {
     backupStack.clear();
-    Stack TOS, TOSm1;
-    if (!FetchMarker(syntaxStack, TOS, TOSm1, backupStack)) {
+    if (!FetchMarker(backupStack)) {
       break;
     }
 
     if (TOS.marker.length() == TOSm1.marker.length()) {
       if (!TOS.toErase) {
         int customCorr =
-            (lastConsumed == LastConsumed::TOS) ? ++correction : correction++;
+            (lastConsumed == LastConsumed::Top) ? ++correction : correction++;
         tokens.insert(tokens.begin() + TOS.index + customCorr,
                       {Lexer::markerMap[TOS.marker], TOS.marker});
       }
       lastConsumed = LastConsumed::NONE;
     } else if (TOS.marker.length() > TOSm1.marker.length()) {
-      StackCorrection(syntaxStack, TOS, TOSm1, correction);
-      lastConsumed = LastConsumed::TOSm1;
+      StackCorrection(TOS, TOSm1);
+      lastConsumed = LastConsumed::Topm1;
     } else {
-      StackCorrection(syntaxStack, TOSm1, TOS, correction);
-      lastConsumed = LastConsumed::TOS;
+      StackCorrection(TOSm1, TOS);
+      lastConsumed = LastConsumed::Top;
     }
     if (backupStack.size() > 0) {
-      FormatCorrections(backupStack, correction);
+      auto* saveContext = syntaxStack;
+      syntaxStack = &backupStack;
+      FormatCorrection();
+      syntaxStack = saveContext;
     }
   }
-  while (!syntaxStack.empty()) {
-    tokens.insert(tokens.begin() + syntaxStack.back().index + ++correction,
-                  {TokenType::TEXT, syntaxStack.back().marker});
-    if (syntaxStack.back().toErase) {
-      tokens.erase(tokens.begin() + syntaxStack.back().index + --correction);
+  EmptyStack();
+}
+
+void Lexer::EmptyStack() {
+  while (!syntaxStack->empty()) {
+    tokens.insert(tokens.begin() + syntaxStack->back().index + ++correction,
+                  {TokenType::TEXT, syntaxStack->back().marker});
+    if (syntaxStack->back().toErase) {
+      tokens.erase(tokens.begin() + syntaxStack->back().index + --correction);
     }
-    syntaxStack.pop_back();
+    syntaxStack->pop_back();
   }
 }
 
-bool Lexer::FetchMarker(std::deque<Stack>& syntaxStack,
-                        Stack& TOS,
-                        Stack& TOSm1,
-                        std::deque<Stack>& backupStack) {
-  TOS = syntaxStack.back();
-  syntaxStack.pop_back();
+bool Lexer::FetchMarker(std::deque<Stack>& backupStack) {
+  TOS = syntaxStack->back();
+  syntaxStack->pop_back();
 
-  TOSm1 = syntaxStack.back();
-  syntaxStack.pop_back();
+  TOSm1 = syntaxStack->back();
+  syntaxStack->pop_back();
   if (TOS.marker[0] != TOSm1.marker[0]) {
-    while (syntaxStack.size() >= 1 && TOS.marker[0] != TOSm1.marker[0]) {
+    while (syntaxStack->size() >= 1 && TOS.marker[0] != TOSm1.marker[0]) {
       backupStack.push_back(TOSm1);
-      TOSm1 = syntaxStack.back();
-      syntaxStack.pop_back();
+      TOSm1 = syntaxStack->back();
+      syntaxStack->pop_back();
     }
-    if (syntaxStack.size() == 0 && TOS.marker[0] != TOSm1.marker[0]) {
-      syntaxStack.push_back(TOSm1);
-      syntaxStack.push_back(TOS);
+    if (syntaxStack->size() == 0 && TOS.marker[0] != TOSm1.marker[0]) {
+      syntaxStack->push_back(TOSm1);
+      syntaxStack->push_back(TOS);
       return false;
     }
   }
   return true;
 }
 
-void Lexer::StackCorrection(std::deque<Stack>& syntaxStack,
-                            Stack& HighItem,
-                            Stack& LowItem,
-                            int& correction) {
+void Lexer::StackCorrection(Stack& HighItem, Stack& LowItem) {
   HighItem.marker = HighItem.marker.substr(
       0, HighItem.marker.length() - LowItem.marker.length());
-  syntaxStack.push_back(std::move(HighItem));
+  syntaxStack->push_back(std::move(HighItem));
 
   if (!LowItem.toErase) {
     tokens.insert(tokens.begin() + LowItem.index + correction++,
                   {Lexer::markerMap[LowItem.marker], LowItem.marker});
   }
-  if (syntaxStack.back().toErase) {
-    tokens.erase(tokens.begin() + syntaxStack.back().index + correction--);
-    syntaxStack.back().toErase = false;
+  if (syntaxStack->back().toErase) {
+    tokens.erase(tokens.begin() + syntaxStack->back().index + correction--);
+    syntaxStack->back().toErase = false;
   }
-  tokens.insert(tokens.begin() + syntaxStack.back().index + ++correction,
+  tokens.insert(tokens.begin() + syntaxStack->back().index + ++correction,
                 {Lexer::markerMap[LowItem.marker], LowItem.marker});
 }
 

@@ -45,25 +45,22 @@ class Lexer {
     int index = 0;
     bool toErase = true;
   } Stack;
-  std::deque<Stack> syntaxStack;
-  inline static std::unordered_map<std::string, TokenType> markerMap;
   Tokens tokens;
+  Stack TOS, TOSm1;
+  int correction = 0;
+  std::deque<Stack>* syntaxStack;
+  inline static std::unordered_map<std::string, TokenType> markerMap;
 
   static void populateMarkerMap();
 
   std::string StrCreat(const std::string&, int);
   void ClearStack();
   bool ToPop(const Token&);
-  void FormatCorrections();
-  void FormatCorrections(std::deque<Stack>&, int&);
-  bool FetchMarker(std::deque<Stack>& syntaxStack,
-                   Stack& TOS,
-                   Stack& TOSm1,
-                   std::deque<Stack>& backupStack);
-  void StackCorrection(std::deque<Stack>& syntaxStack,
-                       Stack& HighItem,
-                       Stack& LowItem,
-                       int& correction);
+  void FormatCorrectionInit();
+  void FormatCorrection();
+  void EmptyStack();
+  bool FetchMarker(std::deque<Stack>& backupStack);
+  void StackCorrection(Stack& HighItem, Stack& LowItem);
   void PushText();
   void TokenUtil(const TokenType&, const std::string&);
   int lookAhead(const std::string&, char&&);

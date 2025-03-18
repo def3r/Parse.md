@@ -1,6 +1,17 @@
 #include <gtest/gtest.h>
 #include "lexer.h"
 
+TEST(LexerTest, SimpleText) {
+  Lexer t;
+  t.tokenize("Mornin folks!");
+  // clang-format off
+  std::vector<Token> expected = {
+      {TokenType::TEXT, "Mornin folks!"},
+  };
+  // clang-format on
+  ASSERT_EQ(t.getTokens(), expected);
+}
+
 TEST(LexerTest, HandlesStarBoldAndItalics) {
   Lexer t;
   t.tokenize("well, **this is *8ball* **");
