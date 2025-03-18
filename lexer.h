@@ -55,7 +55,15 @@ class Lexer {
   void ClearStack();
   bool ToPop(const Token&);
   void FormatCorrections();
-  void FormatCorrections(std::deque<Stack>, int&);
+  void FormatCorrections(std::deque<Stack>&, int&);
+  bool FetchMarker(std::deque<Stack>& syntaxStack,
+                   Stack& TOS,
+                   Stack& TOSm1,
+                   std::deque<Stack>& backupStack);
+  void StackCorrection(std::deque<Stack>& syntaxStack,
+                       Stack& HighItem,
+                       Stack& LowItem,
+                       int& correction);
   void PushText();
   void TokenUtil(const TokenType&, const std::string&);
   int lookAhead(const std::string&, char&&);
