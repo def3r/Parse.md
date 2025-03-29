@@ -25,6 +25,7 @@ const std::string TokenStr(const TokenType& token) {
     case TokenType::BOLD_ITALIC: { return std::move("Token::BOLD_ITALIC"); }
     case TokenType::CODE: { return std::move("Token::CODE"); }
     case TokenType::CODEBLOCK: { return std::move("Token::CODEBLOCK"); }
+    case TokenType::NEWLINE: { return std::move("Token::NEWLINE"); }
   }
   // clang-format on
   return std::move("Token::NONE");
@@ -40,6 +41,7 @@ Lexer::Lexer() {
 void Lexer::tokenize(const std::string& line) {
   begin = line.begin();
   int count = 1;
+  bool isFirst = true;
   for (it = line.begin(); it != line.end(); ++it) {
     if (*it == '*') {
       count = lookAhead(line, '*');
@@ -64,6 +66,21 @@ void Lexer::tokenize(const std::string& line) {
       } else {
         TokenUtil(TokenType::NONE, StrCreat("_", count));
       }
+    }
+    if (*it == '#' && isFirst) {
+      count = lookAhead(line, '#');
+      if (followsWhiteSpace && count <= 6) {
+        TokenUtil(markerMap[StrCreat("#", count)], StrCreat("#", count));
+      }
+    }
+    if (*it == '\n') {
+      count = 1;
+      TokenUtil(TokenType::NEWLINE, "");
+      isFirst = true;
+    }
+
+    if (isFirst && (*it != ' ' && *it != '\t' && *it != '\n')) {
+      isFirst = false;
     }
 
     if (updateBegin) {
@@ -93,6 +110,12 @@ void Lexer::populateMarkerMap() {
   Lexer::markerMap["_"] = TokenType::ITALIC;
   Lexer::markerMap["__"] = TokenType::BOLD;
   Lexer::markerMap["___"] = TokenType::BOLD_ITALIC;
+  Lexer::markerMap["#"] = TokenType::H1;
+  Lexer::markerMap["##"] = TokenType::H2;
+  Lexer::markerMap["###"] = TokenType::H3;
+  Lexer::markerMap["####"] = TokenType::H4;
+  Lexer::markerMap["#####"] = TokenType::H5;
+  Lexer::markerMap["######"] = TokenType::H6;
 }
 
 std::string Lexer::StrCreat(const std::string& s, int n) {
@@ -121,8 +144,7 @@ void Lexer::FormatCorrectionInit() {
   this->syntaxStack = &syntaxStack;
   for (const auto& token : tokens) {
     index++;
-    if ((token.first < (TokenType)6 && token.first != (TokenType)0) ||
-        token.first == TokenType::TEXT) {
+    if ((token.first < (TokenType)9 && token.first != (TokenType)0)) {
       continue;
     }
     if (!ToPop(token)) {
@@ -240,5 +262,6 @@ int Lexer::lookAhead(const std::string& line, char&& c) {
   while ((it + count) != line.end() && *(it + count) == c) {
     count++;
   }
+  followsWhiteSpace = (*(it + count) == ' ');
   return count;
 }
