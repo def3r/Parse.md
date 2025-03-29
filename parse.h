@@ -1,5 +1,5 @@
-#ifndef LEXER_H_
-#define LEXER_H_
+#ifndef PARSE_H_
+#define PARSE_H_
 
 #include <deque>
 #include <string>
@@ -15,7 +15,8 @@ enum class TokenType {
   H5 = 5,
   H6 = 6,
   NEWLINE = 7,
-  TEXT = 8,
+  WHITESPACE = 8,
+  TEXT = 9,
   BOLD,
   ITALIC,
   BOLD_ITALIC,
@@ -25,15 +26,20 @@ enum class TokenType {
 
 const std::string TokenStr(const TokenType&);
 
+typedef std::vector<std::string> Lexemes;
 typedef std::pair<TokenType, std::string> Token;
 typedef std::vector<Token> Tokens;
 
-class Lexer {
+class Parser {
  public:
-  Lexer();
+  Parser();
   void tokenize(const std::string&);
   Tokens getTokens();
   void debug();
+  void Tokenize(const std::string& str);  // returns a vector of lexemes
+  void Lexer();  // analyse lexemes and provide TokenType, returns Tokens
+  void Parse();  // parse the Tokens
+  void Parse(const std::string& str);  // parse the Tokens
 
  private:
   std::string::const_iterator begin, it;
@@ -46,11 +52,13 @@ class Lexer {
     int index = 0;
     bool toErase = true;
   } Stack;
+  Lexemes lexemes;
   Tokens tokens;
   Stack TOS, TOSm1;
   int correction = 0;
   std::deque<Stack>* syntaxStack;
   inline static std::unordered_map<std::string, TokenType> markerMap;
+  static TokenType GetMarker(const std::string& str);
 
   static void populateMarkerMap();
 
@@ -62,9 +70,11 @@ class Lexer {
   void EmptyStack();
   bool FetchMarker(std::deque<Stack>& backupStack);
   void StackCorrection(Stack& HighItem, Stack& LowItem);
-  void PushText();
-  void TokenUtil(const TokenType&, const std::string&);
   int lookAhead(const std::string&, char&&);
+  void PushLexeme(size_t count);
+  void PushLexeme();
+  void PushToken(const std::string& lexeme);
+  void PushToken(TokenType type, const std::string& lexeme);
 };
 
-#endif  // LEXER_H_
+#endif  // PARSE_H_

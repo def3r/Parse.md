@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
-#include "lexer.h"
+#include "parse.h"
 
-TEST(LexerTest, SimpleText) {
-  Lexer t;
-  t.tokenize("Mornin folks!");
+TEST(ParserTest, SimpleText) {
+  Parser t;
+  t.Parse("Mornin folks!");
   // clang-format off
   std::vector<Token> expected = {
       {TokenType::TEXT, "Mornin folks!"},
@@ -12,9 +12,9 @@ TEST(LexerTest, SimpleText) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarBoldAndItalics) {
-  Lexer t;
-  t.tokenize("well, **this is *8ball* **");
+TEST(ParserTest, HandlesStarBoldAndItalics) {
+  Parser t;
+  t.Parse("well, **this is *8ball* **");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -24,16 +24,16 @@ TEST(LexerTest, HandlesStarBoldAndItalics) {
       {TokenType::ITALIC, "*"},
       {TokenType::TEXT, "8ball"},
       {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, " "},
+      {TokenType::WHITESPACE, " "},
       {TokenType::BOLD, "**"},
   };
   // clang-format on
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsImbalance) {
-  Lexer t;
-  t.tokenize("this **ain't nothin*\n");
+TEST(ParserTest, HandlesStarsImbalance) {
+  Parser t;
+  t.Parse("this **ain't nothin*\n");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -42,14 +42,14 @@ TEST(LexerTest, HandlesStarsImbalance) {
       {TokenType::TEXT, "*"},
       {TokenType::TEXT, "ain't nothin"},
       {TokenType::ITALIC, "*"},
-      {TokenType::NEWLINE, ""},
+      {TokenType::NEWLINE, "\n"},
   };
   // clang-format on
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsRandom) {
-  Lexer t;
+TEST(NestedImbalanceTest, HandlesStarsRandom) {
+  Parser t;
   /*
    * *****
    * ***  -> Delete
@@ -59,7 +59,7 @@ TEST(LexerTest, HandlesStarsRandom) {
    * **
    *
    * */
-  t.tokenize("this *****ain't nothin*** this is cruel **\n");
+  t.Parse("this *****ain't nothin*** this is cruel **\n");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -70,15 +70,15 @@ TEST(LexerTest, HandlesStarsRandom) {
       {TokenType::BOLD_ITALIC, "***"},
       {TokenType::TEXT, " this is cruel "},
       {TokenType::BOLD, "**"},
-      {TokenType::NEWLINE, ""},
+      {TokenType::NEWLINE, "\n"},
   };
   // clang-format on
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsRandom2) {
-  Lexer t;
-  t.tokenize("this *is the *****ain't nothin** this is cruel **\n");
+TEST(NestedImbalanceTest, HandlesStarsRandom2) {
+  Parser t;
+  t.Parse("this *is the *****ain't nothin** this is cruel **\n");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -91,15 +91,15 @@ TEST(LexerTest, HandlesStarsRandom2) {
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, " this is cruel "},
       {TokenType::BOLD, "**"},
-      {TokenType::NEWLINE, ""},
+      {TokenType::NEWLINE, "\n"},
   };
   // clang-format on
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsRandom3) {
-  Lexer t;
-  t.tokenize("***So **it *works?* huh...**mornin*");
+TEST(NestedImbalanceTest, HandlesStarsRandom3) {
+  Parser t;
+  t.Parse("***So **it *works?* huh...**mornin*");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -120,8 +120,8 @@ TEST(LexerTest, HandlesStarsRandom3) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsRandom4) {
-  Lexer t;
+TEST(NestedImbalanceTest, HandlesStarsRandom4) {
+  Parser t;
   /*
    * **   -> Delete
    * ***
@@ -131,7 +131,7 @@ TEST(LexerTest, HandlesStarsRandom4) {
    * *
    *
    * */
-  t.tokenize("**how***bout*zis? where this text?");
+  t.Parse("**how***bout*zis? where this text?");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -147,9 +147,9 @@ TEST(LexerTest, HandlesStarsRandom4) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsRandom5) {
-  Lexer t;
-  t.tokenize("**this should be**** entirely bold**");
+TEST(NestedImbalanceTest, HandlesStarsRandom5) {
+  Parser t;
+  t.Parse("**this should be**** entirely bold**");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -164,9 +164,9 @@ TEST(LexerTest, HandlesStarsRandom5) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesUnderscoresRandom) {
-  Lexer t;
-  t.tokenize("__this should be____entirely bold__");
+TEST(NestedImbalanceTest, HandlesUnderscoresRandom) {
+  Parser t;
+  t.Parse("__this should be____entirely bold__");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -181,9 +181,9 @@ TEST(LexerTest, HandlesUnderscoresRandom) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsAndUnderscores) {
-  Lexer t;
-  t.tokenize("__this *should__ be** entirely bold__");
+TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores) {
+  Parser t;
+  t.Parse("__this *should__ be** entirely bold__");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -201,9 +201,9 @@ TEST(LexerTest, HandlesStarsAndUnderscores) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesStarsAndUnderscores2) {
-  Lexer t;
-  t.tokenize("__this *should be** entirely bold__");
+TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores2) {
+  Parser t;
+  t.Parse("__this *should be** entirely bold__");
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
@@ -220,9 +220,9 @@ TEST(LexerTest, HandlesStarsAndUnderscores2) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash1Heading1) {
-  Lexer t;
-  t.tokenize("# This is H1 and something like **this works**");
+TEST(HeadingTest, HandlesHash1Heading1) {
+  Parser t;
+  t.Parse("# This is H1 and something like **this works**");
   // clang-format off
   std::vector<Token> expected = {
       {TokenType::H1, "#"},
@@ -235,12 +235,12 @@ TEST(LexerTest, HandlesHash1Heading1) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash1Heading2) {
-  Lexer t;
-  t.tokenize("  # This is H1 and something like **this works**");
+TEST(HeadingTest, HandlesHash1Heading2) {
+  Parser t;
+  t.Parse("  # This is H1 and something like **this works**");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, "  "}, // skibidi
+      {TokenType::WHITESPACE, "  "}, // skibidi
       {TokenType::H1, "#"},
       {TokenType::TEXT, " This is H1 and something like "},
       {TokenType::BOLD, "**"},
@@ -251,14 +251,16 @@ TEST(LexerTest, HandlesHash1Heading2) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash2Heading1) {
-  Lexer t;
-  t.tokenize(" ## This is H2 and some##thing like **this works**");
+TEST(HeadingTest, HandlesHash2Heading1) {
+  Parser t;
+  t.Parse(" ## This is H2 and some##thing like **this works**");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, " "}, // skibidi
+      {TokenType::WHITESPACE, " "}, // skibidi
       {TokenType::H2, "##"},
-      {TokenType::TEXT, " This is H2 and some##thing like "},
+      {TokenType::TEXT, " This is H2 and some"},
+      {TokenType::TEXT, "##"},
+      {TokenType::TEXT, "thing like "},
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, "this works"},
       {TokenType::BOLD, "**"},
@@ -267,14 +269,16 @@ TEST(LexerTest, HandlesHash2Heading1) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash3Heading1) {
-  Lexer t;
-  t.tokenize(" ### This is H3 and some##thing like **this works**");
+TEST(HeadingTest, HandlesHash3Heading1) {
+  Parser t;
+  t.Parse(" ### This is H3 and some##thing like **this works**");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, " "}, // skibidi
+      {TokenType::WHITESPACE, " "}, // skibidi
       {TokenType::H3, "###"},
-      {TokenType::TEXT, " This is H3 and some##thing like "},
+      {TokenType::TEXT, " This is H3 and some"},
+      {TokenType::TEXT, "##"},
+      {TokenType::TEXT, "thing like "},
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, "this works"},
       {TokenType::BOLD, "**"},
@@ -283,14 +287,16 @@ TEST(LexerTest, HandlesHash3Heading1) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash4Heading1) {
-  Lexer t;
-  t.tokenize(" #### This is H4 and some##thing like **this works**");
+TEST(HeadingTest, HandlesHash4Heading1) {
+  Parser t;
+  t.Parse(" #### This is H4 and some##thing like **this works**");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, " "}, // skibidi
+      {TokenType::WHITESPACE, " "}, // skibidi
       {TokenType::H4, "####"},
-      {TokenType::TEXT, " This is H4 and some##thing like "},
+      {TokenType::TEXT, " This is H4 and some"},
+      {TokenType::TEXT, "##"},
+      {TokenType::TEXT, "thing like "},
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, "this works"},
       {TokenType::BOLD, "**"},
@@ -299,14 +305,16 @@ TEST(LexerTest, HandlesHash4Heading1) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash5Heading1) {
-  Lexer t;
-  t.tokenize(" ##### This is H5 and some##thing like **this works**");
+TEST(HeadingTest, HandlesHash5Heading1) {
+  Parser t;
+  t.Parse(" ##### This is H5 and some##thing like **this works**");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, " "}, // skibidi
+      {TokenType::WHITESPACE, " "}, // skibidi
       {TokenType::H5, "#####"},
-      {TokenType::TEXT, " This is H5 and some##thing like "},
+      {TokenType::TEXT, " This is H5 and some"},
+      {TokenType::TEXT, "##"},
+      {TokenType::TEXT, "thing like "},
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, "this works"},
       {TokenType::BOLD, "**"},
@@ -315,14 +323,16 @@ TEST(LexerTest, HandlesHash5Heading1) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHash6Heading1) {
-  Lexer t;
-  t.tokenize(" ###### This is H6 and some##thing like **this works**");
+TEST(HeadingTest, HandlesHash6Heading1) {
+  Parser t;
+  t.Parse(" ###### This is H6 and some##thing like **this works**");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, " "}, // skibidi
+      {TokenType::WHITESPACE, " "}, // skibidi
       {TokenType::H6, "######"},
-      {TokenType::TEXT, " This is H6 and some##thing like "},
+      {TokenType::TEXT, " This is H6 and some"},
+      {TokenType::TEXT, "##"},
+      {TokenType::TEXT, "thing like "},
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, "this works"},
       {TokenType::BOLD, "**"},
@@ -331,25 +341,28 @@ TEST(LexerTest, HandlesHash6Heading1) {
   ASSERT_EQ(t.getTokens(), expected);
 }
 
-TEST(LexerTest, HandlesHashNewLine) {
-  Lexer t;
-  t.tokenize(
+TEST(HeadingTest, HandlesHashNewLine) {
+  Parser s;
+  s.Parse(
       " ###### This is H6 and some##thing like **this works**\n# Mornin new "
       "line");
+  // s.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, " "}, // skibidi
+      {TokenType::WHITESPACE, " "}, // skibidi
       {TokenType::H6, "######"},
-      {TokenType::TEXT, " This is H6 and some##thing like "},
+      {TokenType::TEXT, " This is H6 and some"},
+      {TokenType::TEXT, "##"},
+      {TokenType::TEXT, "thing like "},
       {TokenType::BOLD, "**"},
       {TokenType::TEXT, "this works"},
       {TokenType::BOLD, "**"},
-      {TokenType::NEWLINE, ""},
+      {TokenType::NEWLINE, "\n"},
       {TokenType::H1, "#"},
       {TokenType::TEXT, " Mornin new line"}
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(s.getTokens(), expected);
 }
 
 int main(int argc, char** argv) {
