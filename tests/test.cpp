@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "parse.h"
+#include "../parse.h"
 
 TEST(ParserTest, SimpleText) {
   Parser t;
@@ -349,7 +349,7 @@ TEST(HeadingTest, HandlesHashNewLine) {
   // s.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "}, // skibidi
+      {TokenType::WHITESPACE, " "},
       {TokenType::H6, "######"},
       {TokenType::TEXT, " This is H6 and some"},
       {TokenType::TEXT, "##"},

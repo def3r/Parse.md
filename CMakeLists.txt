@@ -1,11 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
-project(LexerTests)
+project(ParserMDTests)
 
-set(CMAKE_CXX_STANDARD 17)
+enable_testing()
 
-find_package(GTest REQUIRED)
-include_directories(${GTEST_INCLUDE_DIRS})
-
-add_executable(test_markdown test.cpp parse.cpp)
-
-target_link_libraries(test_markdown GTest::GTest GTest::Main pthread)
+add_subdirectory(./tests)
