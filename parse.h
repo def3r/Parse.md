@@ -57,9 +57,9 @@ class Parser {
   Stack TOS, TOSm1;
   int correction = 0;
   std::deque<Stack>* syntaxStack;
+
   inline static std::unordered_map<std::string, TokenType> markerMap;
   static TokenType GetMarker(const std::string& str);
-
   static void populateMarkerMap();
 
   std::string StrCreat(const std::string&, int);

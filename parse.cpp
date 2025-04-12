@@ -40,6 +40,7 @@ Parser::Parser() {
 }
 
 void Parser::PushLexeme() {
+  updateBegin = true;
   std::string text = (begin >= it) ? "" : std::string(begin, it);
   if (!text.empty()) {
     lexemes.push_back(text);
@@ -87,7 +88,15 @@ TokenType Parser::GetMarker(const std::string& marker) {
   if (markerMap.find(marker) != markerMap.end()) {
     return markerMap[marker];
   }
-  return TokenType::NONE;
+  // clang-format off
+  if (
+    marker[0] == '*' ||
+    marker[0] == '_' ||
+    marker[0] == '#'
+  ) {  // clang-format on
+    return TokenType::NONE;
+  }
+  return TokenType::TEXT;
 }
 
 void Parser::PushToken(const std::string& lexeme) {
@@ -99,26 +108,14 @@ void Parser::PushToken(TokenType type, const std::string& lexeme) {
 
 void Parser::Lexer() {
   for (const auto& lexeme : lexemes) {
-    if (lexeme[0] == '*') {
-      PushToken(lexeme);
-      continue;
-    } else if (lexeme[0] == '_') {
-      PushToken(lexeme);
-      continue;
-    } else if (lexeme[0] == '#') {
-      PushToken(lexeme);
-      continue;
-    } else if (lexeme[0] == '\n') {
-      PushToken(TokenType::NEWLINE, lexeme);
-      continue;
-    } else if (lexeme[0] == ' ') {
+    if (lexeme[0] == ' ') {
       it = lexeme.begin();
       if (lookAhead(lexeme, ' ') == lexeme.size()) {
         PushToken(TokenType::WHITESPACE, lexeme);
         continue;
       }
     }
-    tokens.push_back({TokenType::TEXT, lexeme});
+    PushToken(lexeme);
   }
   return;
 }
@@ -157,6 +154,7 @@ void Parser::populateMarkerMap() {
   Parser::markerMap["####"] = TokenType::H4;
   Parser::markerMap["#####"] = TokenType::H5;
   Parser::markerMap["######"] = TokenType::H6;
+  Parser::markerMap["\n"] = TokenType::NEWLINE;
 }
 
 std::string Parser::StrCreat(const std::string& s, int n) {
@@ -186,7 +184,7 @@ void Parser::FormatCorrectionInit() {
   for (const auto& token : tokens) {
     index++;
     // Skip for NEWLINE, WHITESPACE, TEXT
-    if (token.first >= (TokenType)7 && token.first <= (TokenType)9) {
+    if (token.first >= TokenType::NEWLINE && token.first <= TokenType::TEXT) {
       continue;
     }
 
