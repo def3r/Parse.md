@@ -3,30 +3,37 @@
 
 #include <deque>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#define TOKENS       \
+  X(NONE, 0)         \
+  X(H1, 1)           \
+  X(H2, 2)           \
+  X(H3, 3)           \
+  X(H4, 4)           \
+  X(H5, 5)           \
+  X(H6, 6)           \
+  X(NEWLINE, 7)      \
+  X(WHITESPACE, 8)   \
+  X(TEXT, 9)         \
+  X(BOLD, 10)        \
+  X(ITALIC, 11)      \
+  X(BOLD_ITALIC, 12) \
+  X(CODE, 13)        \
+  X(CODEBLOCK, 14)   \
+  X(ROOT, 15)
+
 enum class TokenType {
-  NONE = 0,
-  H1 = 1,
-  H2 = 2,
-  H3 = 3,
-  H4 = 4,
-  H5 = 5,
-  H6 = 6,
-  NEWLINE = 7,
-  WHITESPACE = 8,
-  TEXT = 9,
-  BOLD,
-  ITALIC,
-  BOLD_ITALIC,
-  CODE,
-  CODEBLOCK,
-  ROOT,
+#define X(TOKEN_NAME, TOKEN_VAL) TOKEN_NAME = TOKEN_VAL,
+  TOKENS
+#undef X
 };
 
 const std::string TokenStr(const TokenType&);
+std::ostream& operator<<(std::ostream&, TokenType&);
 
 typedef std::vector<std::string> Lexemes;
 typedef std::pair<TokenType, std::string> Token;

@@ -10,27 +10,19 @@
 #include <vector>
 
 const std::string TokenStr(const TokenType& token) {
-  // clang-format off
   switch (token) {
-    case TokenType::NONE:         return "Token::NONE";
-    case TokenType::H1:           return "Token::H1";
-    case TokenType::H2:           return "Token::H2";
-    case TokenType::H3:           return "Token::H3";
-    case TokenType::H4:           return "Token::H4";
-    case TokenType::H5:           return "Token::H5";
-    case TokenType::H6:           return "Token::H6";
-    case TokenType::TEXT:         return "Token::TEXT";
-    case TokenType::BOLD:         return "Token::BOLD";
-    case TokenType::ITALIC:       return "Token::ITALIC";
-    case TokenType::BOLD_ITALIC:  return "Token::BOLD_ITALIC";
-    case TokenType::CODE:         return "Token::CODE";
-    case TokenType::CODEBLOCK:    return "Token::CODEBLOCK";
-    case TokenType::NEWLINE:      return "Token::NEWLINE";
-    case TokenType::WHITESPACE:   return "Token::WHITESPACE";
-    case TokenType::ROOT:         return "Token::ROOT";
+#define X(TOKEN_NAME, TOKEN_VAL) \
+  case TokenType::TOKEN_NAME:    \
+    return "Token::" #TOKEN_NAME;
+    TOKENS
+#undef X
   }
-  // clang-format on
   return "Token::NONE";
+}
+
+std::ostream& operator<<(std::ostream& os, TokenType& tt) {
+  os << TokenStr(tt);
+  return os;
 }
 
 typedef std::pair<TokenType, std::string> Token;
