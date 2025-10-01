@@ -33,7 +33,7 @@ enum class TokenType {
 };
 
 const std::string TokenStr(const TokenType&);
-std::ostream& operator<<(std::ostream&, TokenType&);
+std::ostream& operator<<(std::ostream&, const TokenType&);
 
 typedef std::vector<std::string> Lexemes;
 typedef std::pair<TokenType, std::string> Token;
@@ -126,5 +126,8 @@ class Node {
   std::string value;
   std::vector<std::shared_ptr<Node>> children;
 };
+
+// utils
+void ltrim(std::string&);
 
 #endif  // PARSE_H_

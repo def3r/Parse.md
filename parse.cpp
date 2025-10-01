@@ -20,7 +20,7 @@ const std::string TokenStr(const TokenType& token) {
   return "Token::NONE";
 }
 
-std::ostream& operator<<(std::ostream& os, TokenType& tt) {
+std::ostream& operator<<(std::ostream& os, const TokenType& tt) {
   os << TokenStr(tt);
   return os;
 }
@@ -84,8 +84,8 @@ TokenType Parser::GetMarker(const std::string& marker) {
   // clang-format off
   if (
     marker[0] == '*' ||
-    marker[0] == '_' ||
-    marker[0] == '#'
+    marker[0] == '_'
+    // || marker[0] == '#'
   ) {  // clang-format on
     return TokenType::NONE;
   }
@@ -93,6 +93,8 @@ TokenType Parser::GetMarker(const std::string& marker) {
 }
 
 void Parser::PushToken(const std::string& lexeme) {
+  // std::cout << Parser::GetMarker(lexeme) << "|" << lexeme << "|" <<
+  // std::endl;
   tokens.push_back({Parser::GetMarker(lexeme), lexeme});
 }
 void Parser::PushToken(TokenType type, const std::string& lexeme) {
@@ -115,13 +117,11 @@ void Parser::Lexer() {
 
 void Parser::Parse() {
   FormatCorrectionInit();
-  return;
 }
 void Parser::Parse(const std::string& str) {
   Tokenize(str);
   Lexer();
   Parse();
-  return;
 }
 
 Tokens Parser::getTokens() {
@@ -165,14 +165,13 @@ void Parser::ClearStack() {
 }
 
 bool Parser::ToPop(const Token& token) {
-  // std::cout << syntaxStack.front().marker << " : " << token.second << "\n";
   return (!syntaxStack->empty() && syntaxStack->front().marker == token.second);
 }
 
 void Parser::FormatCorrectionInit() {
   int index = -1;
   correction = 0;
-  std::deque<Stack> syntaxStack;
+  std::deque<Stack> syntaxStack = {};
   this->syntaxStack = &syntaxStack;
   for (const auto& token : tokens) {
     index++;
@@ -196,6 +195,8 @@ void Parser::FormatCorrectionInit() {
 
     if (!ToPop(token)) {
       syntaxStack.push_front({token.second, index, true});
+      // std::cout << syntaxStack.front().marker << " <:> " << token.second <<
+      // "\n";
     } else {
       syntaxStack.pop_front();
     }
@@ -303,6 +304,24 @@ int Parser::lookAhead(const std::string& line, char&& c) {
 std::shared_ptr<Node> Parser::MakeTree(Tokens::iterator& it) {
   if (it == this->tokens.end())
     return nullptr;
+  if (it->first == TokenType::NONE) {
+    ++it;
+    return nullptr;
+  }
+
+  if (it->first >= TokenType::H1 && it->first <= TokenType::H6) {
+    Tokens::iterator itNext = it + 1;
+    if (itNext == this->tokens.end()) {
+      it->first = TokenType::TEXT;
+    } else if (itNext->first == TokenType::WHITESPACE) {
+      itNext->first = TokenType::NONE;
+    } else if (itNext->first == TokenType::TEXT && itNext->second[0] == ' ') {
+      ltrim(itNext->second);
+    } else {
+      it->first = TokenType::TEXT;
+    }
+  }
+
   std::shared_ptr<Node> node = std::make_shared<Node>(
       it->first == TokenType::WHITESPACE ? TokenType::TEXT : it->first);
 
@@ -314,6 +333,8 @@ std::shared_ptr<Node> Parser::MakeTree(Tokens::iterator& it) {
     ++it;
     while (it != this->tokens.end() && it->first != endTokenType) {
       std::shared_ptr<Node> child = MakeTree(it);
+      if (child == nullptr)
+        continue;
       node->children.push_back(child);
     }
     it = (it == this->tokens.end()) ? it : it + 1;
@@ -335,6 +356,8 @@ std::shared_ptr<Node> Parser::GetDoc() {
 
   while (it != this->tokens.end()) {
     std::shared_ptr<Node> child = MakeTree(it);
+    if (child == nullptr)
+      continue;
     root->children.push_back(child);
   }
 
@@ -350,4 +373,8 @@ Node::Node() {
 Node::Node(TokenType type) : type(type) {
   this->value = "";
   this->children = {};
+}
+
+void ltrim(std::string& s) {
+  s.erase(0, s.find_first_not_of(' '));
 }
