@@ -2,6 +2,7 @@
 #define PARSE_H_
 
 #include <deque>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -22,6 +23,7 @@ enum class TokenType {
   BOLD_ITALIC,
   CODE,
   CODEBLOCK,
+  ROOT,
 };
 
 const std::string TokenStr(const TokenType&);
@@ -29,6 +31,9 @@ const std::string TokenStr(const TokenType&);
 typedef std::vector<std::string> Lexemes;
 typedef std::pair<TokenType, std::string> Token;
 typedef std::vector<Token> Tokens;
+
+class Parser;
+class Node;
 
 class Parser {
  public:
@@ -40,6 +45,8 @@ class Parser {
   void Lexer();  // analyse lexemes and provide TokenType, returns Tokens
   void Parse();  // parse the Tokens
   void Parse(const std::string& str);  // parse the Tokens
+  void MakeDoc();
+  std::shared_ptr<Node> GetDoc();
 
  private:
   std::string::const_iterator begin, it;
@@ -75,6 +82,42 @@ class Parser {
   void PushLexeme();
   void PushToken(const std::string& lexeme);
   void PushToken(TokenType type, const std::string& lexeme);
+  std::shared_ptr<Node> MakeTree(Tokens::iterator& it);
+};
+
+// NOTE: I still think this is a better idea, but lets see
+//
+// class Node {
+//  protected:
+//   TokenType type_;
+//
+//  public:
+//   virtual ~Node() = default;
+//   virtual TokenType type() const = 0;
+// };
+//
+// class ContainerNode : public Node {
+//  public:
+//   std::vector<std::shared_ptr<Node>> children;
+// };
+//
+// class LeafNode : public Node {
+//  public:
+//   std::string value;
+//   LeafNode(const std::string);
+// };
+
+class Node {
+ public:
+  // TokenType type();
+  // const std::string& value();
+  // const std::vector<std::shared_ptr<Node>>& children();
+  Node(TokenType);
+  Node();
+
+  TokenType type;
+  std::string value;
+  std::vector<std::shared_ptr<Node>> children;
 };
 
 #endif  // PARSE_H_

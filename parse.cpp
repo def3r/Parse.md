@@ -1,8 +1,8 @@
 #include "parse.h"
 
-#include <cmath>
 #include <deque>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -12,24 +12,25 @@
 const std::string TokenStr(const TokenType& token) {
   // clang-format off
   switch (token) {
-    case TokenType::NONE: { return std::move("Token::NONE"); }
-    case TokenType::H1: { return std::move("Token::H1"); }
-    case TokenType::H2: { return std::move("Token::H2"); }
-    case TokenType::H3: { return std::move("Token::H3"); }
-    case TokenType::H4: { return std::move("Token::H4"); }
-    case TokenType::H5: { return std::move("Token::H5"); }
-    case TokenType::H6: { return std::move("Token::H6"); }
-    case TokenType::TEXT: { return std::move("Token::TEXT"); }
-    case TokenType::BOLD: { return std::move("Token::BOLD"); }
-    case TokenType::ITALIC: { return std::move("Token::ITALIC"); }
-    case TokenType::BOLD_ITALIC: { return std::move("Token::BOLD_ITALIC"); }
-    case TokenType::CODE: { return std::move("Token::CODE"); }
-    case TokenType::CODEBLOCK: { return std::move("Token::CODEBLOCK"); }
-    case TokenType::NEWLINE: { return std::move("Token::NEWLINE"); }
-    case TokenType::WHITESPACE: { return std::move("Token::WHITESPACE"); }
+    case TokenType::NONE:         return "Token::NONE";
+    case TokenType::H1:           return "Token::H1";
+    case TokenType::H2:           return "Token::H2";
+    case TokenType::H3:           return "Token::H3";
+    case TokenType::H4:           return "Token::H4";
+    case TokenType::H5:           return "Token::H5";
+    case TokenType::H6:           return "Token::H6";
+    case TokenType::TEXT:         return "Token::TEXT";
+    case TokenType::BOLD:         return "Token::BOLD";
+    case TokenType::ITALIC:       return "Token::ITALIC";
+    case TokenType::BOLD_ITALIC:  return "Token::BOLD_ITALIC";
+    case TokenType::CODE:         return "Token::CODE";
+    case TokenType::CODEBLOCK:    return "Token::CODEBLOCK";
+    case TokenType::NEWLINE:      return "Token::NEWLINE";
+    case TokenType::WHITESPACE:   return "Token::WHITESPACE";
+    case TokenType::ROOT:         return "Token::ROOT";
   }
   // clang-format on
-  return std::move("Token::NONE");
+  return "Token::NONE";
 }
 
 typedef std::pair<TokenType, std::string> Token;
@@ -305,4 +306,56 @@ int Parser::lookAhead(const std::string& line, char&& c) {
   }
   followsWhiteSpace = (*(it + count) == ' ');
   return count;
+}
+
+std::shared_ptr<Node> Parser::MakeTree(Tokens::iterator& it) {
+  if (it == this->tokens.end())
+    return nullptr;
+  std::shared_ptr<Node> node = std::make_shared<Node>(
+      it->first == TokenType::WHITESPACE ? TokenType::TEXT : it->first);
+
+  if (!(it->first == TokenType::TEXT || it->first == TokenType::WHITESPACE)) {
+    TokenType endTokenType =
+        (it->first >= TokenType::H1 && it->first <= TokenType::H6)
+            ? TokenType::NEWLINE
+            : it->first;
+    ++it;
+    while (it != this->tokens.end() && it->first != endTokenType) {
+      std::shared_ptr<Node> child = MakeTree(it);
+      node->children.push_back(child);
+    }
+    it = (it == this->tokens.end()) ? it : it + 1;
+    return node;
+  }
+
+  while (it != this->tokens.end() &&
+         (it->first == TokenType::TEXT || it->first == TokenType::WHITESPACE)) {
+    node->value += it->second;
+    ++it;
+  }
+
+  return node;
+}
+
+std::shared_ptr<Node> Parser::GetDoc() {
+  std::shared_ptr<Node> root = std::make_shared<Node>(TokenType::ROOT);
+  Tokens::iterator it = this->tokens.begin();
+
+  while (it != this->tokens.end()) {
+    std::shared_ptr<Node> child = MakeTree(it);
+    root->children.push_back(child);
+  }
+
+  return root;
+}
+
+Node::Node() {
+  this->type = TokenType::NONE;
+  this->value = "";
+  this->children = {};
+}
+
+Node::Node(TokenType type) : type(type) {
+  this->value = "";
+  this->children = {};
 }
