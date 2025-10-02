@@ -95,13 +95,13 @@ TokenType Parser::GetMarker(const std::string& marker) {
 void Parser::PushToken(const std::string& lexeme) {
   // std::cout << Parser::GetMarker(lexeme) << "|" << lexeme << "|" <<
   // std::endl;
-  tokens.push_back({Parser::GetMarker(lexeme), lexeme});
+  lexTokens.push_back({Parser::GetMarker(lexeme), lexeme});
 }
 void Parser::PushToken(TokenType type, const std::string& lexeme) {
-  tokens.push_back({type, lexeme});
+  lexTokens.push_back({type, lexeme});
 }
 
-void Parser::Lexer() {
+void Parser::LexAnalysis() {
   for (const auto& lexeme : lexemes) {
     if (lexeme[0] == ' ') {
       it = lexeme.begin();
@@ -115,21 +115,23 @@ void Parser::Lexer() {
   return;
 }
 
-void Parser::Parse() {
+std::shared_ptr<Node> Parser::Parse() {
   FormatCorrectionInit();
+  FinalPass();
+  return this->root;
 }
-void Parser::Parse(const std::string& str) {
+std::shared_ptr<Node> Parser::Parse(const std::string& str) {
   Tokenize(str);
-  Lexer();
-  Parse();
+  LexAnalysis();
+  return Parse();
 }
 
-Tokens Parser::getTokens() {
-  return tokens;
+Tokens Parser::getLexTokens() {
+  return lexTokens;
 }
 
 void Parser::debug() {
-  for (auto& token : tokens) {
+  for (auto& token : lexTokens) {
     std::cout << TokenStr(token.first) << "\t\t" << token.second << "\n";
   }
 }
@@ -173,7 +175,7 @@ void Parser::FormatCorrectionInit() {
   correction = 0;
   std::deque<Stack> syntaxStack = {};
   this->syntaxStack = &syntaxStack;
-  for (const auto& token : tokens) {
+  for (const auto& token : lexTokens) {
     index++;
     // Skip for NEWLINE, WHITESPACE, TEXT
     if (token.first >= TokenType::NEWLINE && token.first <= TokenType::TEXT) {
@@ -184,11 +186,12 @@ void Parser::FormatCorrectionInit() {
       if (index == 0) {
         continue;
       }
-      TokenType prevToken = tokens[index - 1].first;
+      TokenType prevToken = lexTokens[index - 1].first;
       if (prevToken != TokenType::NEWLINE &&
           prevToken != TokenType::WHITESPACE) {
-        tokens.insert(tokens.begin() + index, {TokenType::TEXT, token.second});
-        tokens.erase(tokens.begin() + index + 1);
+        lexTokens.insert(lexTokens.begin() + index,
+                         {TokenType::TEXT, token.second});
+        lexTokens.erase(lexTokens.begin() + index + 1);
       }
       continue;
     }
@@ -222,8 +225,8 @@ void Parser::FormatCorrection() {
       if (!TOS.toErase) {
         int customCorr =
             (lastConsumed == LastConsumed::Top) ? ++correction : correction++;
-        tokens.insert(tokens.begin() + TOS.index + customCorr,
-                      {Parser::markerMap[TOS.marker], TOS.marker});
+        lexTokens.insert(lexTokens.begin() + TOS.index + customCorr,
+                         {Parser::markerMap[TOS.marker], TOS.marker});
       }
       lastConsumed = LastConsumed::NONE;
     } else if (TOS.marker.length() > TOSm1.marker.length()) {
@@ -245,10 +248,12 @@ void Parser::FormatCorrection() {
 
 void Parser::EmptyStack() {
   while (!syntaxStack->empty()) {
-    tokens.insert(tokens.begin() + syntaxStack->back().index + ++correction,
-                  {TokenType::TEXT, syntaxStack->back().marker});
+    lexTokens.insert(
+        lexTokens.begin() + syntaxStack->back().index + ++correction,
+        {TokenType::TEXT, syntaxStack->back().marker});
     if (syntaxStack->back().toErase) {
-      tokens.erase(tokens.begin() + syntaxStack->back().index + --correction);
+      lexTokens.erase(lexTokens.begin() + syntaxStack->back().index +
+                      --correction);
     }
     syntaxStack->pop_back();
   }
@@ -281,15 +286,16 @@ void Parser::StackCorrection(Stack& HighItem, Stack& LowItem) {
   syntaxStack->push_back(std::move(HighItem));
 
   if (!LowItem.toErase) {
-    tokens.insert(tokens.begin() + LowItem.index + correction++,
-                  {Parser::markerMap[LowItem.marker], LowItem.marker});
+    lexTokens.insert(lexTokens.begin() + LowItem.index + correction++,
+                     {Parser::markerMap[LowItem.marker], LowItem.marker});
   }
   if (syntaxStack->back().toErase) {
-    tokens.erase(tokens.begin() + syntaxStack->back().index + correction--);
+    lexTokens.erase(lexTokens.begin() + syntaxStack->back().index +
+                    correction--);
     syntaxStack->back().toErase = false;
   }
-  tokens.insert(tokens.begin() + syntaxStack->back().index + ++correction,
-                {Parser::markerMap[LowItem.marker], LowItem.marker});
+  lexTokens.insert(lexTokens.begin() + syntaxStack->back().index + ++correction,
+                   {Parser::markerMap[LowItem.marker], LowItem.marker});
 }
 
 int Parser::lookAhead(const std::string& line, char&& c) {
@@ -301,8 +307,8 @@ int Parser::lookAhead(const std::string& line, char&& c) {
   return count;
 }
 
-std::shared_ptr<Node> Parser::MakeTree() {
-  if (itToken == this->tokens.end())
+std::shared_ptr<Node> Parser::BuildTree() {
+  if (itToken == this->lexTokens.end())
     return nullptr;
   if (itToken->first == TokenType::NONE) {
     itTokenInc();
@@ -332,11 +338,11 @@ std::shared_ptr<Node> Parser::MakeTree() {
 
   std::shared_ptr<Node> node = std::make_shared<Node>(tokenType);
   if (tokenType == TokenType::PARAGRAPH) {
-    MakeParagraph(*node);
+    BuildParagraph(*node);
   } else if (tokenType == TokenType::TEXT) {
-    MakeText(*node);
+    BuildText(*node);
   } else {
-    MakeChildren(*node);
+    BuildChildren(*node);
     itTokenInc();
   }
 
@@ -348,14 +354,14 @@ Tokens::iterator Parser::itTokenInc() {
 }
 Tokens::iterator Parser::itTokenInc(int inc) {
   Tokens::iterator cur = itToken;
-  itToken = (itToken == this->tokens.end()) ? itToken : itToken + inc;
+  itToken = (itToken == this->lexTokens.end()) ? itToken : itToken + inc;
   return cur;
 }
 
-void Parser::MakeParagraph(Node& node) {
-  while (itToken != this->tokens.end()) {
+void Parser::BuildParagraph(Node& node) {
+  while (itToken != this->lexTokens.end()) {
     this->containerType = ContainerType::PARAGRAPH;
-    std::shared_ptr<Node> child = MakeTree();
+    std::shared_ptr<Node> child = BuildTree();
     if (child != nullptr) {
       node.children.push_back(child);
     } else if (isParagraphEnd()) {
@@ -367,8 +373,8 @@ void Parser::MakeParagraph(Node& node) {
   }
 }
 
-void Parser::MakeText(Node& node) {
-  while (itToken != this->tokens.end() &&
+void Parser::BuildText(Node& node) {
+  while (itToken != this->lexTokens.end() &&
          (itToken->first == TokenType::TEXT ||
           itToken->first == TokenType::WHITESPACE)) {
     node.value += itToken->second;
@@ -376,15 +382,15 @@ void Parser::MakeText(Node& node) {
   }
 }
 
-void Parser::MakeChildren(Node& node) {
+void Parser::BuildChildren(Node& node) {
   TokenType endTokenType =
       (isHeading(node.type)) ? TokenType::NEWLINE : itToken->first;
   itTokenInc();
-  while (itToken != this->tokens.end() && itToken->first != endTokenType) {
+  while (itToken != this->lexTokens.end() && itToken->first != endTokenType) {
     if (isHeading(node.type)) {
       this->containerType = ContainerType::HEADING;
     }
-    std::shared_ptr<Node> child = MakeTree();
+    std::shared_ptr<Node> child = BuildTree();
     if (child != nullptr) {
       node.children.push_back(child);
     }
@@ -393,7 +399,7 @@ void Parser::MakeChildren(Node& node) {
 
 bool Parser::validHeading() {
   Tokens::iterator itNext = itToken + 1;
-  if (itNext == this->tokens.end()) {
+  if (itNext == this->lexTokens.end()) {
     itToken->first = TokenType::TEXT;
   } else if (itNext->first == TokenType::WHITESPACE) {
     itNext->first = TokenType::NONE;
@@ -410,24 +416,45 @@ bool Parser::validHeading() {
 }
 
 bool Parser::isParagraphEnd() const {
-  return (itToken + 1) != this->tokens.end() &&
+  return (itToken + 1) != this->lexTokens.end() &&
          itToken->first == TokenType::NEWLINE &&
          (itToken + 1)->first == TokenType::NEWLINE &&
          this->containerType == ContainerType::PARAGRAPH;
 }
 
-std::shared_ptr<Node> Parser::GetDoc() {
-  std::shared_ptr<Node> root = std::make_shared<Node>(TokenType::ROOT);
-  itToken = this->tokens.begin();
+std::shared_ptr<Node> Parser::GetRoot() {
+  return this->root;
+}
 
-  while (itToken != this->tokens.end()) {
+std::shared_ptr<Node> Parser::FinalPass() {
+  root = std::make_shared<Node>(TokenType::ROOT);
+  itToken = this->lexTokens.begin();
+
+  while (itToken != this->lexTokens.end()) {
     this->containerType = ContainerType::ROOT;
-    std::shared_ptr<Node> child = MakeTree();
+    std::shared_ptr<Node> child = BuildTree();
     if (child != nullptr)
       root->children.push_back(child);
   }
 
   return root;
+}
+
+std::string Parser::DumpTree(const std::shared_ptr<Node>& node, int depth) {
+  if (node == nullptr)
+    return "";
+
+  std::stringstream ss;
+  ss << std::string(depth * 2, ' ') << node->type;
+  if (!node->value.empty()) {
+    ss << ' ' << node->value;
+  }
+  ss << "\n";
+  for (auto child : node->children) {
+    ss << DumpTree(child, depth + 1);
+  }
+
+  return ss.str();
 }
 
 Node::Node() {

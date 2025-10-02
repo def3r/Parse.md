@@ -47,14 +47,17 @@ class Node;
 class Parser {
  public:
   Parser();
-  void tokenize(const std::string&);
-  Tokens getTokens();
+
+  void Tokenize(const std::string&);  // returns a vector of lexemes
+  void LexAnalysis();  // analyse lexemes and provide TokenType, returns Tokens
+  std::shared_ptr<Node> Parse();                    // parse the Tokens
+  std::shared_ptr<Node> Parse(const std::string&);  // parse the string
+  std::shared_ptr<Node> GetRoot();
+
+  Tokens getLexTokens();
   void debug();
-  void Tokenize(const std::string& str);  // returns a vector of lexemes
-  void Lexer();  // analyse lexemes and provide TokenType, returns Tokens
-  void Parse();  // parse the Tokens
-  void Parse(const std::string& str);  // parse the Tokens
-  std::shared_ptr<Node> GetDoc();
+
+  static std::string DumpTree(const std::shared_ptr<Node>&, int = 0);
 
  private:
   typedef struct Stack {
@@ -70,12 +73,13 @@ class Parser {
   bool followsWhiteSpace = false;
   bool renderBlank = false;
   Lexemes lexemes;
-  Tokens tokens;
+  Tokens lexTokens;
   Stack TOS, TOSm1;
   int correction = 0;
   std::deque<Stack>* syntaxStack;
   ContainerType containerType = ContainerType::ROOT;
   Tokens::iterator itToken;
+  std::shared_ptr<Node> root = 0;
 
   inline static std::unordered_map<std::string, TokenType> markerMap;
   static TokenType GetMarker(const std::string& str);
@@ -95,10 +99,11 @@ class Parser {
   void PushToken(const std::string& lexeme);
   void PushToken(TokenType type, const std::string& lexeme);
 
-  std::shared_ptr<Node> MakeTree();
-  void MakeParagraph(Node&);
-  void MakeText(Node&);
-  void MakeChildren(Node&);
+  std::shared_ptr<Node> FinalPass();
+  std::shared_ptr<Node> BuildTree();
+  void BuildParagraph(Node&);
+  void BuildText(Node&);
+  void BuildChildren(Node&);
   bool isParagraphEnd() const;
   bool validHeading();
   Tokens::iterator itTokenInc();

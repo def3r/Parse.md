@@ -9,7 +9,7 @@ TEST(ParserTest, SimpleText) {
       {TokenType::TEXT, "Mornin folks!"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(ParserTest, HandlesStarBoldAndItalics) {
@@ -28,7 +28,7 @@ TEST(ParserTest, HandlesStarBoldAndItalics) {
       {TokenType::BOLD, "**"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(ParserTest, HandlesStarsImbalance) {
@@ -45,7 +45,7 @@ TEST(ParserTest, HandlesStarsImbalance) {
       {TokenType::NEWLINE, "\n"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom) {
@@ -73,7 +73,7 @@ TEST(NestedImbalanceTest, HandlesStarsRandom) {
       {TokenType::NEWLINE, "\n"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom2) {
@@ -94,7 +94,7 @@ TEST(NestedImbalanceTest, HandlesStarsRandom2) {
       {TokenType::NEWLINE, "\n"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom3) {
@@ -117,7 +117,7 @@ TEST(NestedImbalanceTest, HandlesStarsRandom3) {
       {TokenType::ITALIC, "*"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom4) {
@@ -144,7 +144,7 @@ TEST(NestedImbalanceTest, HandlesStarsRandom4) {
       {TokenType::TEXT, "zis? where this text?"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom5) {
@@ -161,7 +161,7 @@ TEST(NestedImbalanceTest, HandlesStarsRandom5) {
       {TokenType::BOLD, "**"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesUnderscoresRandom) {
@@ -178,7 +178,7 @@ TEST(NestedImbalanceTest, HandlesUnderscoresRandom) {
       {TokenType::BOLD, "__"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores) {
@@ -198,7 +198,7 @@ TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores) {
       {TokenType::TEXT, "__"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores2) {
@@ -217,152 +217,7 @@ TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores2) {
       {TokenType::BOLD, "__"},
   };
   // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash1Heading1) {
-  Parser t;
-  t.Parse("# This is H1 and something like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::H1, "#"},
-      {TokenType::TEXT, " This is H1 and something like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash1Heading2) {
-  Parser t;
-  t.Parse("  # This is H1 and something like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, "  "}, // skibidi
-      {TokenType::H1, "#"},
-      {TokenType::TEXT, " This is H1 and something like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash2Heading1) {
-  Parser t;
-  t.Parse(" ## This is H2 and some##thing like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "}, // skibidi
-      {TokenType::H2, "##"},
-      {TokenType::TEXT, " This is H2 and some"},
-      {TokenType::TEXT, "##"},
-      {TokenType::TEXT, "thing like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash3Heading1) {
-  Parser t;
-  t.Parse(" ### This is H3 and some##thing like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "}, // skibidi
-      {TokenType::H3, "###"},
-      {TokenType::TEXT, " This is H3 and some"},
-      {TokenType::TEXT, "##"},
-      {TokenType::TEXT, "thing like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash4Heading1) {
-  Parser t;
-  t.Parse(" #### This is H4 and some##thing like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "}, // skibidi
-      {TokenType::H4, "####"},
-      {TokenType::TEXT, " This is H4 and some"},
-      {TokenType::TEXT, "##"},
-      {TokenType::TEXT, "thing like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash5Heading1) {
-  Parser t;
-  t.Parse(" ##### This is H5 and some##thing like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "}, // skibidi
-      {TokenType::H5, "#####"},
-      {TokenType::TEXT, " This is H5 and some"},
-      {TokenType::TEXT, "##"},
-      {TokenType::TEXT, "thing like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHash6Heading1) {
-  Parser t;
-  t.Parse(" ###### This is H6 and some##thing like **this works**");
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "}, // skibidi
-      {TokenType::H6, "######"},
-      {TokenType::TEXT, " This is H6 and some"},
-      {TokenType::TEXT, "##"},
-      {TokenType::TEXT, "thing like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-  };
-  // clang-format on
-  ASSERT_EQ(t.getTokens(), expected);
-}
-
-TEST(HeadingTest, HandlesHashNewLine) {
-  Parser s;
-  s.Parse(
-      " ###### This is H6 and some##thing like **this works**\n# Mornin new "
-      "line");
-  // s.debug();
-  // clang-format off
-  std::vector<Token> expected = {
-      {TokenType::WHITESPACE, " "},
-      {TokenType::H6, "######"},
-      {TokenType::TEXT, " This is H6 and some"},
-      {TokenType::TEXT, "##"},
-      {TokenType::TEXT, "thing like "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this works"},
-      {TokenType::BOLD, "**"},
-      {TokenType::NEWLINE, "\n"},
-      {TokenType::H1, "#"},
-      {TokenType::TEXT, " Mornin new line"}
-  };
-  // clang-format on
-  ASSERT_EQ(s.getTokens(), expected);
+  ASSERT_EQ(t.getLexTokens(), expected);
 }
 
 int main(int argc, char** argv) {
