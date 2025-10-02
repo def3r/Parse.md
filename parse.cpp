@@ -9,6 +9,10 @@
 #include <utility>
 #include <vector>
 
+TokenType operator+(TokenType t, int i) {
+  return static_cast<TokenType>(static_cast<int>(t) + i);
+}
+
 const std::string TokenStr(const TokenType& token) {
   switch (token) {
 #define X(TOKEN_NAME, TOKEN_VAL) \
@@ -329,8 +333,7 @@ std::shared_ptr<Node> Parser::BuildTree() {
     return this->containerType == ContainerType::PARAGRAPH
            ? std::make_shared<Node>(" ") : nullptr;
   }
-  if (this->containerType == ContainerType::ROOT &&
-      tokenType == TokenType::TEXT) {
+  if (this->containerType == ContainerType::ROOT && !isHeading(tokenType)) {
     tokenType = TokenType::PARAGRAPH;
     this->containerType = ContainerType::PARAGRAPH;
   }
@@ -378,7 +381,7 @@ void Parser::BuildText(Node& node) {
          (itToken->first == TokenType::TEXT ||
           itToken->first == TokenType::WHITESPACE)) {
     node.value += itToken->second;
-    ++itToken;
+    itTokenInc();
   }
 }
 

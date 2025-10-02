@@ -33,6 +33,7 @@ enum class TokenType {
 #undef X
 };
 #define isHeading(token) (token >= TokenType::H1 && token <= TokenType::H6)
+TokenType operator+(TokenType, int);
 
 const std::string TokenStr(const TokenType&);
 std::ostream& operator<<(std::ostream&, const TokenType&);
@@ -134,9 +135,6 @@ class Parser {
 
 class Node {
  public:
-  // TokenType type();
-  // const std::string& value();
-  // const std::vector<std::shared_ptr<Node>>& children();
   Node(TokenType);
   Node(std::string);
   Node();
