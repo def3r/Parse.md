@@ -301,64 +301,130 @@ int Parser::lookAhead(const std::string& line, char&& c) {
   return count;
 }
 
-std::shared_ptr<Node> Parser::MakeTree(Tokens::iterator& it) {
-  if (it == this->tokens.end())
+std::shared_ptr<Node> Parser::MakeTree() {
+  if (itToken == this->tokens.end())
     return nullptr;
-  if (it->first == TokenType::NONE) {
-    ++it;
+  if (itToken->first == TokenType::NONE) {
+    itTokenInc();
+    return nullptr;
+  }
+  if (isHeading(itToken->first) && !validHeading()) {
+    return nullptr;
+  }
+  if (isParagraphEnd()) {
     return nullptr;
   }
 
-  if (it->first >= TokenType::H1 && it->first <= TokenType::H6) {
-    Tokens::iterator itNext = it + 1;
-    if (itNext == this->tokens.end()) {
-      it->first = TokenType::TEXT;
-    } else if (itNext->first == TokenType::WHITESPACE) {
-      itNext->first = TokenType::NONE;
-    } else if (itNext->first == TokenType::TEXT && itNext->second[0] == ' ') {
-      ltrim(itNext->second);
-    } else {
-      it->first = TokenType::TEXT;
-    }
+  // clang-format off
+  TokenType tokenType = itToken->first == TokenType::WHITESPACE
+                        ? TokenType::TEXT : itToken->first;
+  if (tokenType == TokenType::NEWLINE) {
+    itTokenInc();
+    return this->containerType == ContainerType::PARAGRAPH
+           ? std::make_shared<Node>(" ") : nullptr;
   }
-
-  std::shared_ptr<Node> node = std::make_shared<Node>(
-      it->first == TokenType::WHITESPACE ? TokenType::TEXT : it->first);
-
-  if (!(it->first == TokenType::TEXT || it->first == TokenType::WHITESPACE)) {
-    TokenType endTokenType =
-        (it->first >= TokenType::H1 && it->first <= TokenType::H6)
-            ? TokenType::NEWLINE
-            : it->first;
-    ++it;
-    while (it != this->tokens.end() && it->first != endTokenType) {
-      std::shared_ptr<Node> child = MakeTree(it);
-      if (child == nullptr)
-        continue;
-      node->children.push_back(child);
-    }
-    it = (it == this->tokens.end()) ? it : it + 1;
-    return node;
+  if (this->containerType == ContainerType::ROOT &&
+      tokenType == TokenType::TEXT) {
+    tokenType = TokenType::PARAGRAPH;
+    this->containerType = ContainerType::PARAGRAPH;
   }
+  // clang-format on
 
-  while (it != this->tokens.end() &&
-         (it->first == TokenType::TEXT || it->first == TokenType::WHITESPACE)) {
-    node->value += it->second;
-    ++it;
+  std::shared_ptr<Node> node = std::make_shared<Node>(tokenType);
+  if (tokenType == TokenType::PARAGRAPH) {
+    MakeParagraph(*node);
+  } else if (tokenType == TokenType::TEXT) {
+    MakeText(*node);
+  } else {
+    MakeChildren(*node);
+    itTokenInc();
   }
 
   return node;
 }
 
+Tokens::iterator Parser::itTokenInc() {
+  return itTokenInc(1);
+}
+Tokens::iterator Parser::itTokenInc(int inc) {
+  Tokens::iterator cur = itToken;
+  itToken = (itToken == this->tokens.end()) ? itToken : itToken + inc;
+  return cur;
+}
+
+void Parser::MakeParagraph(Node& node) {
+  while (itToken != this->tokens.end()) {
+    this->containerType = ContainerType::PARAGRAPH;
+    std::shared_ptr<Node> child = MakeTree();
+    if (child != nullptr) {
+      node.children.push_back(child);
+    } else if (isParagraphEnd()) {
+      itToken = itToken + 2;
+      return;
+    } else if (this->containerType == ContainerType::HEADING) {
+      return;
+    }
+  }
+}
+
+void Parser::MakeText(Node& node) {
+  while (itToken != this->tokens.end() &&
+         (itToken->first == TokenType::TEXT ||
+          itToken->first == TokenType::WHITESPACE)) {
+    node.value += itToken->second;
+    ++itToken;
+  }
+}
+
+void Parser::MakeChildren(Node& node) {
+  TokenType endTokenType =
+      (isHeading(node.type)) ? TokenType::NEWLINE : itToken->first;
+  itTokenInc();
+  while (itToken != this->tokens.end() && itToken->first != endTokenType) {
+    if (isHeading(node.type)) {
+      this->containerType = ContainerType::HEADING;
+    }
+    std::shared_ptr<Node> child = MakeTree();
+    if (child != nullptr) {
+      node.children.push_back(child);
+    }
+  }
+}
+
+bool Parser::validHeading() {
+  Tokens::iterator itNext = itToken + 1;
+  if (itNext == this->tokens.end()) {
+    itToken->first = TokenType::TEXT;
+  } else if (itNext->first == TokenType::WHITESPACE) {
+    itNext->first = TokenType::NONE;
+  } else if (itNext->first == TokenType::TEXT && itNext->second[0] == ' ') {
+    if (this->containerType == ContainerType::PARAGRAPH) {
+      this->containerType = ContainerType::HEADING;
+      return false;
+    }
+    ltrim(itNext->second);
+  } else {
+    itToken->first = TokenType::TEXT;
+  }
+  return true;
+}
+
+bool Parser::isParagraphEnd() const {
+  return (itToken + 1) != this->tokens.end() &&
+         itToken->first == TokenType::NEWLINE &&
+         (itToken + 1)->first == TokenType::NEWLINE &&
+         this->containerType == ContainerType::PARAGRAPH;
+}
+
 std::shared_ptr<Node> Parser::GetDoc() {
   std::shared_ptr<Node> root = std::make_shared<Node>(TokenType::ROOT);
-  Tokens::iterator it = this->tokens.begin();
+  itToken = this->tokens.begin();
 
-  while (it != this->tokens.end()) {
-    std::shared_ptr<Node> child = MakeTree(it);
-    if (child == nullptr)
-      continue;
-    root->children.push_back(child);
+  while (itToken != this->tokens.end()) {
+    this->containerType = ContainerType::ROOT;
+    std::shared_ptr<Node> child = MakeTree();
+    if (child != nullptr)
+      root->children.push_back(child);
   }
 
   return root;
@@ -372,6 +438,11 @@ Node::Node() {
 
 Node::Node(TokenType type) : type(type) {
   this->value = "";
+  this->children = {};
+}
+
+Node::Node(std::string value) : value(value) {
+  this->type = TokenType::TEXT;
   this->children = {};
 }
 

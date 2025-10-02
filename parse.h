@@ -24,13 +24,15 @@
   X(BOLD_ITALIC, 12) \
   X(CODE, 13)        \
   X(CODEBLOCK, 14)   \
-  X(ROOT, 15)
+  X(ROOT, 15)        \
+  X(PARAGRAPH, 16)
 
 enum class TokenType {
 #define X(TOKEN_NAME, TOKEN_VAL) TOKEN_NAME = TOKEN_VAL,
   TOKENS
 #undef X
 };
+#define isHeading(token) (token >= TokenType::H1 && token <= TokenType::H6)
 
 const std::string TokenStr(const TokenType&);
 std::ostream& operator<<(std::ostream&, const TokenType&);
@@ -52,25 +54,28 @@ class Parser {
   void Lexer();  // analyse lexemes and provide TokenType, returns Tokens
   void Parse();  // parse the Tokens
   void Parse(const std::string& str);  // parse the Tokens
-  void MakeDoc();
   std::shared_ptr<Node> GetDoc();
 
  private:
-  std::string::const_iterator begin, it;
-  bool updateBegin = false;
-  bool followsWhiteSpace = false;
-  bool renderBlank = false;
   typedef struct Stack {
     std::string marker;
     // metadata
     int index = 0;
     bool toErase = true;
   } Stack;
+  enum class ContainerType { ROOT, PARAGRAPH, HEADING };
+
+  std::string::const_iterator begin, it;
+  bool updateBegin = false;
+  bool followsWhiteSpace = false;
+  bool renderBlank = false;
   Lexemes lexemes;
   Tokens tokens;
   Stack TOS, TOSm1;
   int correction = 0;
   std::deque<Stack>* syntaxStack;
+  ContainerType containerType = ContainerType::ROOT;
+  Tokens::iterator itToken;
 
   inline static std::unordered_map<std::string, TokenType> markerMap;
   static TokenType GetMarker(const std::string& str);
@@ -89,7 +94,15 @@ class Parser {
   void PushLexeme();
   void PushToken(const std::string& lexeme);
   void PushToken(TokenType type, const std::string& lexeme);
-  std::shared_ptr<Node> MakeTree(Tokens::iterator& it);
+
+  std::shared_ptr<Node> MakeTree();
+  void MakeParagraph(Node&);
+  void MakeText(Node&);
+  void MakeChildren(Node&);
+  bool isParagraphEnd() const;
+  bool validHeading();
+  Tokens::iterator itTokenInc();
+  Tokens::iterator itTokenInc(int);
 };
 
 // NOTE: I still think this is a better idea, but lets see
@@ -120,6 +133,7 @@ class Node {
   // const std::string& value();
   // const std::vector<std::shared_ptr<Node>>& children();
   Node(TokenType);
+  Node(std::string);
   Node();
 
   TokenType type;
