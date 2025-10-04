@@ -1,15 +1,17 @@
 #include <gtest/gtest.h>
 #include "../parse.h"
 
+using namespace markdown;
+
 TEST(ParserTest, SimpleText) {
   Parser t;
   t.Parse("Mornin folks!");
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, "Mornin folks!"},
+      {TokenType::Text, "Mornin folks!"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(ParserTest, HandlesStarBoldAndItalics) {
@@ -18,17 +20,17 @@ TEST(ParserTest, HandlesStarBoldAndItalics) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, "well, "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this is "},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "8ball"},
-      {TokenType::ITALIC, "*"},
-      {TokenType::WHITESPACE, " "},
-      {TokenType::BOLD, "**"},
+      {TokenType::Text, "well, "},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, "this is "},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "8ball"},
+      {TokenType::Italic, "*"},
+      {TokenType::Whitespace, " "},
+      {TokenType::Bold, "**"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(ParserTest, HandlesStarsImbalance) {
@@ -37,15 +39,15 @@ TEST(ParserTest, HandlesStarsImbalance) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, "this "},
-      {TokenType::ITALIC, "*"}, // INTERESTING
-      {TokenType::TEXT, "*"},
-      {TokenType::TEXT, "ain't nothin"},
-      {TokenType::ITALIC, "*"},
-      {TokenType::NEWLINE, "\n"},
+      {TokenType::Text, "this "},
+      {TokenType::Italic, "*"}, // INTERESTING
+      {TokenType::Text, "*"},
+      {TokenType::Text, "ain't nothin"},
+      {TokenType::Italic, "*"},
+      {TokenType::Newline, "\n"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom) {
@@ -63,17 +65,17 @@ TEST(NestedImbalanceTest, HandlesStarsRandom) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, "this "},
-      {TokenType::BOLD, "**"},
-      {TokenType::BOLD_ITALIC, "***"},
-      {TokenType::TEXT, "ain't nothin"},
-      {TokenType::BOLD_ITALIC, "***"},
-      {TokenType::TEXT, " this is cruel "},
-      {TokenType::BOLD, "**"},
-      {TokenType::NEWLINE, "\n"},
+      {TokenType::Text, "this "},
+      {TokenType::Bold, "**"},
+      {TokenType::BoldItalic, "***"},
+      {TokenType::Text, "ain't nothin"},
+      {TokenType::BoldItalic, "***"},
+      {TokenType::Text, " this is cruel "},
+      {TokenType::Bold, "**"},
+      {TokenType::Newline, "\n"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom2) {
@@ -82,19 +84,19 @@ TEST(NestedImbalanceTest, HandlesStarsRandom2) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::TEXT, "this "},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "is the "},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "****"},
-      {TokenType::TEXT, "ain't nothin"},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, " this is cruel "},
-      {TokenType::BOLD, "**"},
-      {TokenType::NEWLINE, "\n"},
+      {TokenType::Text, "this "},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "is the "},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "****"},
+      {TokenType::Text, "ain't nothin"},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, " this is cruel "},
+      {TokenType::Bold, "**"},
+      {TokenType::Newline, "\n"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom3) {
@@ -103,21 +105,21 @@ TEST(NestedImbalanceTest, HandlesStarsRandom3) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::ITALIC, "*"}, // INTERESTING
-      {TokenType::TEXT, "**"},
-      {TokenType::TEXT, "So "},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "it "},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "works?"},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, " huh..."},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "mornin"},
-      {TokenType::ITALIC, "*"},
+      {TokenType::Italic, "*"}, // INTERESTING
+      {TokenType::Text, "**"},
+      {TokenType::Text, "So "},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, "it "},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "works?"},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, " huh..."},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, "mornin"},
+      {TokenType::Italic, "*"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom4) {
@@ -135,16 +137,16 @@ TEST(NestedImbalanceTest, HandlesStarsRandom4) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "how"},
-      {TokenType::BOLD, "**"},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "bout"},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "zis? where this text?"},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, "how"},
+      {TokenType::Bold, "**"},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "bout"},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "zis? where this text?"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesStarsRandom5) {
@@ -153,15 +155,15 @@ TEST(NestedImbalanceTest, HandlesStarsRandom5) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, "this should be"},
-      {TokenType::BOLD, "**"},
-      {TokenType::BOLD, "**"},
-      {TokenType::TEXT, " entirely bold"},
-      {TokenType::BOLD, "**"},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, "this should be"},
+      {TokenType::Bold, "**"},
+      {TokenType::Bold, "**"},
+      {TokenType::Text, " entirely bold"},
+      {TokenType::Bold, "**"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceTest, HandlesUnderscoresRandom) {
@@ -170,15 +172,15 @@ TEST(NestedImbalanceTest, HandlesUnderscoresRandom) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::BOLD, "__"},
-      {TokenType::TEXT, "this should be"},
-      {TokenType::BOLD, "__"},
-      {TokenType::BOLD, "__"},
-      {TokenType::TEXT, "entirely bold"},
-      {TokenType::BOLD, "__"},
+      {TokenType::Bold, "__"},
+      {TokenType::Text, "this should be"},
+      {TokenType::Bold, "__"},
+      {TokenType::Bold, "__"},
+      {TokenType::Text, "entirely bold"},
+      {TokenType::Bold, "__"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores) {
@@ -187,18 +189,18 @@ TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::BOLD, "__"},
-      {TokenType::TEXT, "this "},
-      {TokenType::TEXT, "*"},
-      {TokenType::TEXT, "should"},
-      {TokenType::BOLD, "__"},
-      {TokenType::TEXT, " be"},
-      {TokenType::TEXT, "**"},
-      {TokenType::TEXT, " entirely bold"},
-      {TokenType::TEXT, "__"},
+      {TokenType::Bold, "__"},
+      {TokenType::Text, "this "},
+      {TokenType::Text, "*"},
+      {TokenType::Text, "should"},
+      {TokenType::Bold, "__"},
+      {TokenType::Text, " be"},
+      {TokenType::Text, "**"},
+      {TokenType::Text, " entirely bold"},
+      {TokenType::Text, "__"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores2) {
@@ -207,17 +209,17 @@ TEST(NestedImbalanceMultiple, HandlesStarsAndUnderscores2) {
   // t.debug();
   // clang-format off
   std::vector<Token> expected = {
-      {TokenType::BOLD, "__"},
-      {TokenType::TEXT, "this "},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "should be"},
-      {TokenType::ITALIC, "*"},
-      {TokenType::TEXT, "*"},
-      {TokenType::TEXT, " entirely bold"},
-      {TokenType::BOLD, "__"},
+      {TokenType::Bold, "__"},
+      {TokenType::Text, "this "},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "should be"},
+      {TokenType::Italic, "*"},
+      {TokenType::Text, "*"},
+      {TokenType::Text, " entirely bold"},
+      {TokenType::Bold, "__"},
   };
   // clang-format on
-  ASSERT_EQ(t.getLexTokens(), expected);
+  ASSERT_EQ(t.GetTokens(), expected);
 }
 
 int main(int argc, char** argv) {

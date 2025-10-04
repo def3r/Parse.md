@@ -18,10 +18,12 @@ A Markdown parser library written in C++
 #include <iostream>
 #include "parse.h"
 
+using namespace markdown;
+
 int main() {
   Parser p;
   p.Parse("### This is **strong** and *italic*");
-  auto tree = p.GetRoot();
-  std::cout << Parser::DumpTree(tree) << std::endl;
+  Tree tree = p.GetRoot();
+  std::cout << Parser::DumpTree(tree);
 }
 ```
