@@ -2,9 +2,11 @@
 
 #include <deque>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -33,17 +35,20 @@ Parser::Parser() {}
 
 void Parser::PushLexeme() {
   updateBegin_ = true;
-  std::string text = (begin_ >= it_) ? "" : std::string(begin_, it_);
-  if (!text.empty()) {
-    lexemes_.push_back(text);
+  // std::string text = (begin_ >= it_) ? "" : std::string(begin_, it_);
+  if (begin_ < it_) {
+    lexemes_.emplace_back(
+        begin_,
+        std::distance(begin_, it_));  // C++ 20 makes life easier but, whatever
   }
 }
 
 void Parser::PushLexeme(size_t count) {
   updateBegin_ = true;
   PushLexeme();
-  std::string text = (it_ + count == it_) ? "" : std::string(it_, it_ + count);
-  lexemes_.push_back(text);
+  if (it_ + count != it_) {
+    lexemes_.emplace_back(it_, count);
+  }
 }
 
 bool Parser::IsDelimiter() {
@@ -57,15 +62,16 @@ bool Parser::IsDelimiter() {
   return false;
 }
 
-void Parser::Tokenize(const std::string& line) {
-  begin_ = line.begin();
+void Parser::Tokenize(std::string_view doc) {
+  document_ = doc;
+  begin_ = doc.begin();
   int count = 1;
-  for (it_ = line.begin(); it_ != line.end(); ++it_) {
+  for (it_ = doc.begin(); it_ != doc.end(); ++it_) {
     if (*it_ == '\n') {
       count = 1;
       PushLexeme(count);
     } else if (IsDelimiter()) {
-      count = LookAhead(line, *it_);
+      count = LookAhead(doc, *it_);
       PushLexeme(count);
     }
 
@@ -78,12 +84,12 @@ void Parser::Tokenize(const std::string& line) {
   PushLexeme();
 }
 
-void Parser::PushToken(const std::string& lexeme) {
+void Parser::PushToken(std::string_view lexeme) {
   // std::cout << Parser::GetMarker(lexeme) << "|" << lexeme << "|" <<
   // std::endl;
   candTokens_.push_back({detail::GetMarker(lexeme), lexeme});
 }
-void Parser::PushToken(TokenType type, const std::string& lexeme) {
+void Parser::PushToken(TokenType type, std::string_view lexeme) {
   candTokens_.push_back({type, lexeme});
 }
 
@@ -106,8 +112,8 @@ Tree Parser::Parse() {
   FinalPass();
   return this->root_;
 }
-Tree Parser::Parse(const std::string& str) {
-  Tokenize(str);
+Tree Parser::Parse(std::string_view doc) {
+  Tokenize(doc);
   LexAnalysis();
   return Parse();
 }
@@ -136,7 +142,7 @@ bool Parser::ToPop(const Token& token) {
 void Parser::FormatCorrectionInit() {
   int index = -1;
   correction_ = 0;
-  std::deque<Stack> syntaxStack = {};
+  std::deque<StackItem> syntaxStack = {};
   this->syntaxStack_ = &syntaxStack;
   for (const auto& token : candTokens_) {
     index++;
@@ -153,7 +159,7 @@ void Parser::FormatCorrectionInit() {
       if (prevToken != TokenType::Newline &&
           prevToken != TokenType::Whitespace) {
         candTokens_.insert(candTokens_.begin() + index,
-                          {TokenType::Text, token.second});
+                           {TokenType::Text, token.second});
         candTokens_.erase(candTokens_.begin() + index + 1);
       }
       continue;
@@ -161,9 +167,6 @@ void Parser::FormatCorrectionInit() {
 
     if (!ToPop(token)) {
       syntaxStack.push_front({token.second, index, true});
-      // std::cout << syntaxStack.front().marker << " <:> " << token.second
-      // <<
-      // "\n";
     } else {
       syntaxStack.pop_front();
     }
@@ -177,7 +180,7 @@ void Parser::FormatCorrectionInit() {
 
 void Parser::FormatCorrection() {
   enum LastConsumed { Top, Topm1, NONE };
-  std::deque<Stack> backupStack;
+  std::deque<StackItem> backupStack;
   LastConsumed lastConsumed = LastConsumed::NONE;
   while (!syntaxStack_->empty() && syntaxStack_->size() >= 2) {
     backupStack.clear();
@@ -190,7 +193,7 @@ void Parser::FormatCorrection() {
         int customCorr =
             (lastConsumed == LastConsumed::Top) ? ++correction_ : correction_++;
         candTokens_.insert(candTokens_.begin() + TOS_.index + customCorr,
-                          {detail::GetMarker(TOS_.marker), TOS_.marker});
+                           {detail::GetMarker(TOS_.marker), TOS_.marker});
       }
       lastConsumed = LastConsumed::NONE;
     } else if (TOS_.marker.length() > TOSm1_.marker.length()) {
@@ -217,13 +220,13 @@ void Parser::EmptyStack() {
         {TokenType::Text, syntaxStack_->back().marker});
     if (syntaxStack_->back().toErase) {
       candTokens_.erase(candTokens_.begin() + syntaxStack_->back().index +
-                       --correction_);
+                        --correction_);
     }
     syntaxStack_->pop_back();
   }
 }
 
-bool Parser::FetchMarker(std::deque<Stack>& backupStack) {
+bool Parser::FetchMarker(std::deque<StackItem>& backupStack) {
   TOS_ = syntaxStack_->back();
   syntaxStack_->pop_back();
 
@@ -244,18 +247,18 @@ bool Parser::FetchMarker(std::deque<Stack>& backupStack) {
   return true;
 }
 
-void Parser::StackCorrection(Stack& HighItem, Stack& LowItem) {
+void Parser::StackCorrection(StackItem& HighItem, StackItem& LowItem) {
   HighItem.marker = HighItem.marker.substr(
       0, HighItem.marker.length() - LowItem.marker.length());
   syntaxStack_->push_back(std::move(HighItem));
 
   if (!LowItem.toErase) {
     candTokens_.insert(candTokens_.begin() + LowItem.index + correction_++,
-                      {detail::GetMarker(LowItem.marker), LowItem.marker});
+                       {detail::GetMarker(LowItem.marker), LowItem.marker});
   }
   if (syntaxStack_->back().toErase) {
     candTokens_.erase(candTokens_.begin() + syntaxStack_->back().index +
-                     correction_--);
+                      correction_--);
     syntaxStack_->back().toErase = false;
   }
   candTokens_.insert(
@@ -263,7 +266,7 @@ void Parser::StackCorrection(Stack& HighItem, Stack& LowItem) {
       {detail::GetMarker(LowItem.marker), LowItem.marker});
 }
 
-int Parser::LookAhead(const std::string& line, const char& c) {
+int Parser::LookAhead(std::string_view line, const char& c) {
   int count = 1;
   while ((it_ + count) != line.end() && *(it_ + count) == c) {
     count++;
@@ -438,11 +441,11 @@ Node::Node(std::string value) : value(value) {
   this->children = {};
 }
 
-void ltrim(std::string& s) {
-  s.erase(0, s.find_first_not_of(' '));
+void ltrim(std::string_view& s) {
+  s.remove_prefix(s.find_first_not_of(' '));
 }
 
-TokenType detail::GetMarker(const std::string& marker) {
+TokenType detail::GetMarker(std::string_view marker) {
   for (Marker m : markers) {
     if (m.marker == marker)
       return m.type;

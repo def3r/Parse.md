@@ -5,6 +5,7 @@
 #include <memory>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -43,8 +44,8 @@ std::ostream& operator<<(std::ostream&, const TokenType&);
 class Parser;
 class Node;
 
-typedef std::vector<std::string> Lexemes;
-typedef std::pair<TokenType, std::string> Token;
+typedef std::vector<std::string_view> Lexemes;
+typedef std::pair<TokenType, std::string_view> Token;
 typedef std::vector<Token> Tokens;
 typedef std::shared_ptr<Node> Tree;
 
@@ -52,10 +53,10 @@ class Parser {
  public:
   Parser();
 
-  void Tokenize(const std::string&);  // returns a vector of lexemes
+  void Tokenize(std::string_view);  // returns a vector of lexemes
   void LexAnalysis();  // analyse lexemes and provide TokenType, returns Tokens
   Tree Parse();        // parse the Tokens
-  Tree Parse(const std::string&);  // parse the string
+  Tree Parse(std::string_view);  // parse the string
   Tree GetRoot();
 
   Tokens GetTokens();
@@ -64,26 +65,27 @@ class Parser {
   static std::string DumpTree(const Tree&, int = 0);
 
  private:
-  typedef struct Stack {
-    std::string marker;
+  typedef struct StackItem {
+    std::string_view marker;
     // metadata
     int index = 0;
     bool toErase = true;
-  } Stack;
+  } StackItem;
   enum class ContainerType { Root, Paragraph, Heading };
 
-  std::string::const_iterator begin_, it_;
+  std::string document_;
+  std::string_view::const_iterator begin_, it_;
   bool updateBegin_ = false;
   bool followsWhiteSpace_ = false;
   bool renderBlank_ = false;
   Lexemes lexemes_;
   Tokens candTokens_;
-  Stack TOS_, TOSm1_;
+  StackItem TOS_, TOSm1_;
   int correction_ = 0;
-  std::deque<Stack>* syntaxStack_;
+  std::deque<StackItem>* syntaxStack_;
   ContainerType containerType_ = ContainerType::Root;
   Tokens::iterator itToken_;
-  std::shared_ptr<Node> root_ = 0;
+  Tree root_ = 0;
 
   bool IsDelimiter();
   void ClearStack();
@@ -91,13 +93,13 @@ class Parser {
   void FormatCorrectionInit();
   void FormatCorrection();
   void EmptyStack();
-  bool FetchMarker(std::deque<Stack>& backupStack);
-  void StackCorrection(Stack& HighItem, Stack& LowItem);
-  int LookAhead(const std::string&, const char&);
+  bool FetchMarker(std::deque<StackItem>& backupStack);
+  void StackCorrection(StackItem& HighItem, StackItem& LowItem);
+  int LookAhead(std::string_view, const char&);
   void PushLexeme(size_t count);
   void PushLexeme();
-  void PushToken(const std::string& lexeme);
-  void PushToken(TokenType type, const std::string& lexeme);
+  void PushToken(std::string_view lexeme);
+  void PushToken(TokenType type, std::string_view lexeme);
 
   Tree FinalPass();
   Tree BuildTree();
@@ -144,7 +146,7 @@ class Node {
 };
 
 // utils
-void ltrim(std::string&);
+void ltrim(std::string_view&);
 
 namespace detail {
 struct Marker {
@@ -162,7 +164,7 @@ inline constexpr Marker markers[] = {
     {"\n", TokenType::Newline},
 };
 
-TokenType GetMarker(const std::string& str);
+TokenType GetMarker(std::string_view str);
 
 }  // namespace detail
 
