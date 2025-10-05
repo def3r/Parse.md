@@ -1,6 +1,7 @@
 #include "parse.h"
 
 #include <deque>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -62,11 +63,124 @@ bool Parser::IsDelimiter() {
   return false;
 }
 
-void Parser::Tokenize(std::string_view doc) {
+std::string_view::iterator Parser::DocumentBegin() {
+  return static_cast<std::string_view>(document_).begin();
+}
+std::string_view::iterator Parser::DocumentEnd() {
+  return static_cast<std::string_view>(document_).end();
+}
+
+Block Parser::GetBlock() {
+  return block_;
+}
+
+void Parser::AssignDocument(std::string_view doc) {
   document_ = doc;
-  begin_ = doc.begin();
+  begin_ = it_ = DocumentBegin();
+}
+
+int Parser::LookAhead(std::string_view sv,
+                      const char& c,
+                      std::string_view::const_iterator it) {
   int count = 1;
-  for (it_ = doc.begin(); it_ != doc.end(); ++it_) {
+  while ((it + count) != sv.end() && *(it + count) == c) {
+    count++;
+  }
+  followsWhiteSpace_ = (*(it + count) == ' ');
+  return count;
+}
+
+Block Parser::BuildBlocks() {
+  std::string_view line = ScanNextLine();
+  while (!line.empty() || it_ != DocumentEnd()) {
+    if (line.empty()) {
+      line = ScanNextLine();
+      continue;
+    }
+
+    size_t pos = line.find_first_not_of(' ');
+    size_t whitespaceCnt = pos;
+    // lets not care about whitespace count rn (codeblock burn)
+    if (line[pos] == '#') {
+      int count = LookAhead(line, line[pos], line.begin() + pos);
+      std::string_view marker(line.begin() + pos, count);
+
+      if (followsWhiteSpace_ && detail::GetMarker(marker) != TokenType::Text) {
+        line.remove_prefix(pos + count + 1);
+        line.remove_prefix(line.find_first_not_of(' '));
+        line.remove_suffix(line.size() - line.find_last_not_of(' '));
+        return {
+            .type = detail::GetMarker(marker),
+            .isOpen = false,
+            .text = line,
+            .children = {},
+        };
+      }
+    }
+
+    // always true for now
+    if (blockType_ == BlockType::Root) {
+      return BuildParagraphBlock();
+    }
+
+    std::cout << std::quoted(line) << "\n";
+    line = ScanNextLine();
+  }
+  return {};
+}
+
+Block Parser::BuildParagraphBlock() {
+  Block paragraph = Block{
+      .type = TokenType::Paragraph,
+      .isOpen = false,
+      .text = {},
+      .children = {},
+  };
+  std::string_view line(begin_, std::distance(begin_, it_ - 1));
+  std::string_view::iterator begin = line.begin();
+  size_t count = 0;
+
+  while (!line.empty() || it_ != DocumentEnd()) {
+    // paragraph ends
+    size_t pos = line.find_first_not_of(' ');
+    if (line.empty() || pos == std::string_view::npos) {
+      paragraph.text = std::string_view(begin, count - 1);
+      return paragraph;
+    }
+    count += line.size() + 1;
+    line = ScanNextLine();
+  }
+
+  paragraph.text = std::string_view(begin, count);
+  return paragraph;
+}
+
+void Parser::AnalyzeBlocks(std::string_view doc) {
+  AssignDocument(doc);
+  block_.type = TokenType::Root;
+  block_.text = "";
+
+  while (it_ != DocumentEnd()) {
+    blockType_ = BlockType::Root;
+    Block child = BuildBlocks();
+    if (child.type != TokenType::None) {
+      block_.children.push_back(child);
+    }
+  }
+}
+
+std::string_view Parser::ScanNextLine() {
+  begin_ = it_;
+  while (it_ != DocumentEnd() && *it_ != '\n')
+    ++it_;
+  return std::string_view(
+      begin_, std::distance(begin_, (it_ != DocumentEnd()) ? it_++ : it_));
+}
+
+void Parser::Tokenize(std::string_view doc) {
+  AssignDocument(doc);
+  int count = 1;
+  for (it_ = DocumentBegin(); it_ != DocumentEnd(); ++it_) {
     if (*it_ == '\n') {
       count = 1;
       PushLexeme(count);
@@ -406,6 +520,20 @@ Tree Parser::FinalPass() {
   }
 
   return root_;
+}
+
+std::string Parser::DumpTree(const Block& node, int depth) {
+  std::stringstream ss;
+  ss << std::string(depth * 2, ' ') << node.type;
+  if (!node.text.empty()) {
+    ss << ' ' << std::quoted(node.text);
+  }
+  ss << "\n";
+  for (auto child : node.children) {
+    ss << DumpTree(child, depth + 1);
+  }
+
+  return ss.str();
 }
 
 std::string Parser::DumpTree(const Tree& node, int depth) {
