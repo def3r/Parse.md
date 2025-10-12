@@ -1,10 +1,12 @@
 #include "parse.h"
 
+#include <cstdlib>
 #include <deque>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <memory>
+#include <ostream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -32,6 +34,142 @@ std::ostream& operator<<(std::ostream& os, const TokenType& tt) {
   return os << TokenStr(tt);
 }
 
+Scanner::Scanner() {
+  Init("");
+}
+Scanner::Scanner(std::string_view data) {
+  Init(data);
+}
+
+void Scanner::Init(std::string_view data) {
+  data_ = data;
+  begin_ = it_ = data_.begin();
+}
+
+char Scanner::At(CurPos curPos, int offset) {
+  std::string_view::iterator it = GetIterator(curPos);
+  auto size = std::distance(data_.begin(), it) + offset;
+  if (size > data_.size() || size < 0) {
+    return '\0';
+  }
+  if (it == data_.end() && offset > 0 || it == data_.begin() && offset < 0) {
+    return '\0';
+  }
+
+  it += offset;
+  // begin and end of a line are considered as whitespace
+  if (it == data_.begin() || it == data_.end()) {
+    return ' ';
+  }
+
+  return *it;
+}
+
+char Scanner::ScanNextByte() {
+  return End() ? '\0' : *(it_++);
+}
+
+char Scanner::CurrentByte() {
+  if (it_ == begin_) {
+    return '\0';
+  }
+  return *(it_ - 1);
+}
+
+std::string_view Scanner::Scan(size_t size, CurPos curPos, int offset) {
+  std::string_view::iterator it = GetIterator(curPos);
+  if (!ValidArgs(offset, it)) {
+    return std::string_view();
+  }
+  it += offset;
+  if (std::distance(data_.begin(), it) + size > data_.size()) {
+    return std::string_view();
+  }
+
+  return std::string_view(it, size);
+}
+
+std::string_view Scanner::ScanNextLine() {
+  begin_ = it_;
+  while (it_ != data_.end() && *it_ != '\n')
+    ++it_;
+  return std::string_view(
+      begin_, std::distance(begin_, (it_ != data_.end()) ? it_++ : it_));
+}
+
+std::string_view Scanner::CurrentLine() {
+  if (begin_ == it_)
+    return "";
+  return std::string_view(begin_, std::distance(begin_, it_ - 1));
+}
+
+std::string_view Scanner::FlushCurrentLine() {
+  std::string_view line = CurrentLine();
+  Flush();
+  return line;
+}
+
+void Scanner::Flush() {
+  if (it_ == data_.begin())
+    return;
+  begin_ = it_ - 1;
+}
+
+void Scanner::FlushBytes(size_t n) {
+  if (std::distance(data_.begin(), begin_) + n > data_.size()) {
+    std::cerr << "OVERFLOW while Flushing Bytes" << std::endl;
+    begin_ = it_ = data_.end();
+    return;
+  }
+  begin_ += n;
+  it_ = begin_;
+}
+
+bool Scanner::End() {
+  return it_ == data_.end();
+}
+
+int Scanner::LookAhead(CurPos curPos, int offset) {
+  std::string_view::iterator it = GetIterator(curPos);
+  if (!ValidArgs(offset, it)) {
+    return -1;
+  }
+
+  it = it + offset;
+  char c = *it;
+  int count = 1;
+  while ((it + count) != data_.end() && *(it + count) == c) {
+    count++;
+  }
+
+  followedByWhiteSpace_ = (*(it + count) == ' ');
+  return count;
+}
+
+std::string_view::iterator Scanner::GetIterator(CurPos curPos) {
+  switch (curPos) {
+    case CurPos::Begin:
+      return data_.begin();
+    case CurPos::BeginIt:
+      return begin_;
+    case CurPos::Cur:
+      return it_;
+    case CurPos::EndIt:
+      return it_;
+    default:
+      return data_.end();
+  }
+}
+
+bool Scanner::ValidArgs(int offset, std::string_view::iterator it) {
+  auto size = std::distance(data_.begin(), it) + offset;
+  if (size > data_.size() || size < 0)
+    return false;
+  if (it == data_.end() && offset >= 0 || it == data_.begin() && offset < 0)
+    return false;
+  return true;
+}
+
 Parser::Parser() {}
 
 void Parser::PushLexeme() {
@@ -57,7 +195,7 @@ bool Parser::IsDelimiter() {
   switch (*it_) {
     case '*': return true;
     case '_': return true;
-    case '#': return true;
+    // case '#': return true;
   }
   // clang-format on
   return false;
@@ -75,26 +213,15 @@ Block Parser::GetBlock() {
 }
 
 void Parser::AssignDocument(std::string_view doc) {
+  scanner.Init(doc);
   document_ = doc;
   begin_ = it_ = DocumentBegin();
 }
 
-int Parser::LookAhead(std::string_view sv,
-                      const char& c,
-                      std::string_view::const_iterator it) {
-  int count = 1;
-  while ((it + count) != sv.end() && *(it + count) == c) {
-    count++;
-  }
-  followsWhiteSpace_ = (*(it + count) == ' ');
-  return count;
-}
-
 Block Parser::BuildBlocks() {
-  std::string_view line = ScanNextLine();
-  while (!line.empty() || it_ != DocumentEnd()) {
+  std::string_view line;
+  while ((line = scanner.ScanNextLine()) != "" || !scanner.End()) {
     if (line.empty()) {
-      line = ScanNextLine();
       continue;
     }
 
@@ -102,13 +229,13 @@ Block Parser::BuildBlocks() {
     size_t whitespaceCnt = pos;
     // lets not care about whitespace count rn (codeblock burn)
     if (line[pos] == '#') {
-      int count = LookAhead(line, line[pos], line.begin() + pos);
+      Scanner scnr(line);
+      int count = scnr.LookAhead(Scanner::CurPos::Begin, pos);
       std::string_view marker(line.begin() + pos, count);
 
-      if (followsWhiteSpace_ && detail::GetMarker(marker) != TokenType::Text) {
-        line.remove_prefix(pos + count + 1);
-        line.remove_prefix(line.find_first_not_of(' '));
-        line.remove_suffix(line.size() - line.find_last_not_of(' '));
+      if (scnr.followedByWhiteSpace_ &&
+          detail::GetMarker(marker) != TokenType::Text) {
+        markdown::trim(line, pos + count + 1);
         return {
             .type = detail::GetMarker(marker),
             .isOpen = false,
@@ -124,7 +251,6 @@ Block Parser::BuildBlocks() {
     }
 
     std::cout << std::quoted(line) << "\n";
-    line = ScanNextLine();
   }
   return {};
 }
@@ -136,31 +262,36 @@ Block Parser::BuildParagraphBlock() {
       .text = {},
       .children = {},
   };
-  std::string_view line(begin_, std::distance(begin_, it_ - 1));
+  std::string_view line = scanner.CurrentLine();
   std::string_view::iterator begin = line.begin();
   size_t count = 0;
 
-  while (!line.empty() || it_ != DocumentEnd()) {
+  while (!line.empty() || !scanner.End()) {
     // paragraph ends
     size_t pos = line.find_first_not_of(' ');
     if (line.empty() || pos == std::string_view::npos) {
-      paragraph.text = std::string_view(begin, count - 1);
+      std::string_view text(begin, count - 1);
+      trim(text);
+      paragraph.text = text;
       return paragraph;
     }
     count += line.size() + 1;
-    line = ScanNextLine();
+    line = scanner.ScanNextLine();
   }
 
-  paragraph.text = std::string_view(begin, count);
+  std::string_view text(begin, count);
+  trim(text);
+  paragraph.text = text;
   return paragraph;
 }
 
 void Parser::AnalyzeBlocks(std::string_view doc) {
   AssignDocument(doc);
+  scanner.Init(doc);
   block_.type = TokenType::Root;
   block_.text = "";
 
-  while (it_ != DocumentEnd()) {
+  while (!scanner.End()) {
     blockType_ = BlockType::Root;
     Block child = BuildBlocks();
     if (child.type != TokenType::None) {
@@ -169,12 +300,162 @@ void Parser::AnalyzeBlocks(std::string_view doc) {
   }
 }
 
-std::string_view Parser::ScanNextLine() {
-  begin_ = it_;
-  while (it_ != DocumentEnd() && *it_ != '\n')
-    ++it_;
-  return std::string_view(
-      begin_, std::distance(begin_, (it_ != DocumentEnd()) ? it_++ : it_));
+Block Parser::BuildInline() {
+  Block b;
+
+  return b;
+}
+
+void Parser::AnalyzeInline() {
+  if (block_.type == TokenType::None) {
+    return;
+  }
+
+  int count = 1;
+  for (Block& block : block_.children) {
+    scanner.Init(block.text);
+    while (!scanner.End()) {
+      char c = scanner.ScanNextByte();
+      if (c == '\n') {
+        // count = 1;
+        // PushCandToken(count);
+      } else if (detail::IsDelimiter(c)) {
+        count = scanner.LookAhead(Scanner::CurPos::Cur, -1);
+        if (detail::IsValidDelimiter(
+                scanner.At(Scanner::CurPos::Cur, -2), c,
+                scanner.At(Scanner::CurPos::Cur, count - 1))) {
+          PushCandToken(count);
+          // } else {
+          //   std::cout << "[REJECTED]: LF: "
+          //             << detail::IsLeftFlanking(
+          //                    scanner.At(Scanner::CurPos::Cur, -2),
+          //                    scanner.At(Scanner::CurPos::Cur, count - 1))
+          //             << "\tRF: "
+          //             << detail::IsRightFlanking(
+          //                    scanner.At(Scanner::CurPos::Cur, -2),
+          //                    scanner.At(Scanner::CurPos::Cur, count - 1))
+          //             << std::endl;
+        }
+      }
+    }
+    PushCandToken();
+
+    for (auto token : candTokens_) {
+      std::cout << token.first << "\t" << token.second << std::endl;
+    }
+    for (auto token : delimiterStack) {
+      switch (token.type) {
+        case DelimiterType::Asteriks:
+          std::cout << "Asterisks\t";
+          break;
+        case DelimiterType::Underscore:
+          std::cout << "Underscore\t";
+          break;
+      }
+      std::cout << token.number << "\t";
+      switch (token.delimiterState) {
+        case DelimiterState::Open:
+          std::cout << "Open\t";
+          break;
+        case DelimiterState::Close:
+          std::cout << "Close\t";
+          break;
+        case DelimiterState::Both:
+          std::cout << "Both\t";
+          break;
+      }
+      std::cout << token.tokenIndex << std::endl;
+    }
+    std::cout << "-------------------\n";
+
+    delimiterStack = {};
+    candTokens_ = {};
+  }
+}
+
+void Parser::PushCandToken() {
+  std::string_view lexeme = scanner.CurrentLine();
+  if (!lexeme.empty()) {
+    candTokens_.push_back({TokenType::Text, lexeme});
+  }
+}
+void Parser::PushCandToken(size_t count) {
+  PushCandToken();
+  scanner.Flush();
+  std::string_view lexeme =
+      scanner.Scan(count, Scanner::CurPos::BeginIt);  // (it_, count);
+  if (lexeme.empty()) {
+    std::cerr << "WARNING: Trying to push empty token as a candidate token!"
+              << std::endl;
+    return;
+  }
+  int tokenIndex = candTokens_.size();
+  char c = scanner.CurrentByte();
+  char prev = scanner.At(Scanner::CurPos::Cur, -2);
+  char next = scanner.At(Scanner::CurPos::Cur, count - 1);
+  // std::cout << prev << "|" << c << "|" << next << "|" << count << std::endl;
+
+  DelimiterStackItem dsi = {
+      .type = (c == '*') ? DelimiterType::Asteriks : DelimiterType::Underscore,
+      .number = count,
+      .isActive = true,
+      .tokenIndex = tokenIndex,
+  };
+
+  if (c == '*') {
+    int state = 0;
+    if (detail::IsLeftFlanking(prev, next)) {
+      state++;
+    }
+    if (detail::IsRightFlanking(prev, next)) {
+      state += 2;
+    }
+
+    switch (state) {
+      case 1:
+        dsi.delimiterState = DelimiterState::Open;
+        break;
+      case 2:
+        dsi.delimiterState = DelimiterState::Close;
+        break;
+      case 3:
+        dsi.delimiterState = DelimiterState::Both;
+        break;
+    }
+
+  } else if (c == '_') {
+    int state = 0;
+    if (detail::IsLeftFlanking(prev, next) &&
+        (!detail::IsRightFlanking(prev, next) || detail::IsPunctuation(prev))) {
+      state++;
+    }
+    if (detail::IsRightFlanking(prev, next) &&
+        (!detail::IsLeftFlanking(prev, next) || detail::IsPunctuation(next))) {
+      state += 2;
+    }
+
+    switch (state) {
+      case 1:
+        dsi.delimiterState = DelimiterState::Open;
+        break;
+      case 2:
+        dsi.delimiterState = DelimiterState::Close;
+        break;
+      case 3:
+        dsi.delimiterState = DelimiterState::Both;
+        break;
+    }
+
+  } else {
+    std::cerr << "Unhandled Delimiter " << std::quoted(std::to_string(*it_))
+              << std::endl;
+    std::exit(1);
+  }
+
+  delimiterStack.emplace_back(dsi);
+  candTokens_.push_back({detail::GetMarker(lexeme), lexeme});
+
+  scanner.FlushBytes(count);
 }
 
 void Parser::Tokenize(std::string_view doc) {
@@ -199,8 +480,8 @@ void Parser::Tokenize(std::string_view doc) {
 }
 
 void Parser::PushToken(std::string_view lexeme) {
-  // std::cout << Parser::GetMarker(lexeme) << "|" << lexeme << "|" <<
-  // std::endl;
+  // std::cout << Parser::GetMarker(lexeme) << "|" << lexeme <<
+  // "|" << std::endl;
   candTokens_.push_back({detail::GetMarker(lexeme), lexeme});
 }
 void Parser::PushToken(TokenType type, std::string_view lexeme) {
@@ -385,7 +666,7 @@ int Parser::LookAhead(std::string_view line, const char& c) {
   while ((it_ + count) != line.end() && *(it_ + count) == c) {
     count++;
   }
-  followsWhiteSpace_ = (*(it_ + count) == ' ');
+  followsWhiteSpace_ = detail::IsWhitespace(*(it_ + count));
   return count;
 }
 
@@ -573,6 +854,13 @@ void ltrim(std::string_view& s) {
   s.remove_prefix(s.find_first_not_of(' '));
 }
 
+void trim(std::string_view& sv, size_t lPos, size_t rPos) {
+  sv.remove_prefix(lPos);
+  sv.remove_prefix(sv.find_first_not_of(' '));
+  sv.remove_suffix(sv.size() - sv.find_last_not_of(' ') - 1);
+  sv.remove_suffix(rPos);
+}
+
 TokenType detail::GetMarker(std::string_view marker) {
   for (Marker m : markers) {
     if (m.marker == marker)
@@ -587,6 +875,74 @@ TokenType detail::GetMarker(std::string_view marker) {
     return TokenType::None;
   }
   return TokenType::Text;
+}
+
+bool detail::IsDelimiter(char c) {
+  // clang-format off
+  switch (c) {
+    case '*': return true;
+    case '_': return true;
+    // case '#': return true;
+  }
+  // clang-format on
+  return false;
+}
+
+bool detail::IsValidDelimiter(char prev, char delim, char next) {
+  if (!(delim == '*' || delim == '_')) {
+    std::cerr << "Unhandled Delimiter: " << std::quoted(std::to_string(delim))
+              << std::endl;
+    std::exit(1);
+  }
+
+  return detail::IsLeftFlanking(prev, next) ||
+         detail::IsRightFlanking(prev, next);
+}
+
+bool detail::IsWhitespace(char c) {
+  return (c == ' ' || c == '\t' || c == '\n') ? true : false;
+}
+
+bool detail::IsPunctuation(char c) {
+  // ASCII only
+  if (c >= 33 && c <= 47)
+    return true;
+  else if (c >= 58 && c <= 64)
+    return true;
+  else if (c >= 91 && c <= 96)
+    return true;
+  else if (c >= 123 && c <= 126)
+    return true;
+
+  return false;
+}
+
+bool detail::IsLeftFlanking(char prev, char next) {
+  // NOTE: No Unicode support
+  if (detail::IsWhitespace(next)) {
+    return false;
+  }
+
+  if (detail::IsPunctuation(next) &&
+      !(detail::IsWhitespace(prev) || detail::IsPunctuation(prev))) {
+    return false;
+  }
+
+  return true;
+}
+
+bool detail::IsRightFlanking(char prev, char next) {
+  // NOTE: No Unicode support
+  if (detail::IsWhitespace(prev)) {
+    return false;
+  }
+
+  if (detail::IsPunctuation(prev) &&
+      !(detail::IsWhitespace(next) || detail::IsPunctuation(next))) {
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace markdown

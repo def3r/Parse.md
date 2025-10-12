@@ -47,6 +47,7 @@ const std::string TokenStr(const TokenType&);
 std::ostream& operator<<(std::ostream&, const TokenType&);
 
 struct Block;
+class Scanner;
 class Parser;
 class Node;
 
@@ -63,6 +64,39 @@ struct Block {
   Blocks children;
 };
 
+class Scanner {
+ public:
+  enum class CurPos { Begin, BeginIt, Cur, EndIt, End };
+  friend class Parser;
+  Scanner();
+  Scanner(std::string_view data);
+  void Init(std::string_view data);
+  char ScanNextByte();
+  char CurrentByte();
+  std::string_view ScanNextLine();
+  std::string_view CurrentLine();
+  std::string_view FlushCurrentLine();
+  void Flush();
+  void FlushBytes(size_t n);
+  bool End();
+
+  // Random Access, internal state unaffected
+  char At(CurPos curPos = CurPos::Begin, int offset = 0);
+  std::string_view Scan(size_t size,
+                        CurPos curPos = CurPos::Begin,
+                        int offset = 0);
+  int LookAhead(CurPos curPos = CurPos::Begin, int offset = 0);
+
+ protected:
+  std::string_view data_;
+  std::string_view::iterator begin_, it_;
+  bool updateBegin_ = false;
+  bool followedByWhiteSpace_ = false;
+
+  std::string_view::iterator GetIterator(CurPos curPos);
+  bool ValidArgs(int offset, std::string_view::iterator);
+};
+
 class Parser {
  public:
   Parser();
@@ -72,7 +106,6 @@ class Parser {
   Block BuildBlocks();
   Block BuildParagraphBlock();
   Block GetBlock();
-  std::string_view ScanNextLine();
 
   void Tokenize(std::string_view);  // returns a vector of lexemes
   void LexAnalysis();  // analyse lexemes and provide TokenType, returns Tokens
@@ -82,6 +115,23 @@ class Parser {
 
   Tokens GetTokens();
   void debug();
+
+  enum class DelimiterType { Asteriks, Underscore };
+  enum class DelimiterState { Open, Close, Both };
+  typedef struct DelimiterStackItem {
+    DelimiterType type;
+    size_t number;
+    bool isActive;
+    DelimiterState delimiterState;
+    int tokenIndex;
+  } DelimiterStackItem;
+  std::vector<DelimiterStackItem> delimiterStack = {};
+
+  void AnalyzeInline();
+  void PushCandToken();
+  void PushCandToken(size_t);
+  Block BuildInline();
+  std::string_view curLine_;
 
   static std::string DumpTree(const Tree&, int = 0);
   static std::string DumpTree(const Block&, int = 0);
@@ -96,6 +146,7 @@ class Parser {
   enum class ContainerType { Root, Paragraph, Heading };
   enum class BlockType { Root, Paragraph, Heading };
 
+  Scanner scanner = {};
   std::string document_;
   std::string_view::const_iterator begin_, it_;
   bool updateBegin_ = false;
@@ -124,9 +175,6 @@ class Parser {
   bool FetchMarker(std::deque<StackItem>& backupStack);
   void StackCorrection(StackItem& HighItem, StackItem& LowItem);
   int LookAhead(std::string_view, const char&);
-  int LookAhead(std::string_view,
-                const char&,
-                std::string_view::const_iterator);
   void PushLexeme(size_t count);
   void PushLexeme();
   void PushToken(std::string_view lexeme);
@@ -178,6 +226,7 @@ class Node {
 
 // utils
 void ltrim(std::string_view&);
+void trim(std::string_view& sv, size_t lPos = 0, size_t rPos = 0);
 
 namespace detail {
 struct Marker {
@@ -196,6 +245,12 @@ inline constexpr Marker markers[] = {
 };
 
 TokenType GetMarker(std::string_view str);
+bool IsDelimiter(char c);
+bool IsValidDelimiter(char prev, char delim, char next);
+bool IsWhitespace(char);
+bool IsPunctuation(char);
+bool IsLeftFlanking(char prev, char next);
+bool IsRightFlanking(char prev, char next);
 
 }  // namespace detail
 
