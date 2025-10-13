@@ -13,24 +13,32 @@
 #include <vector>
 
 // clang-format off
-#define TOKENS      \
-  X(None,       0)  \
-  X(Root,       1)  \
-  X(Paragraph,  2)  \
-  X(Codeblock,  3)  \
-  X(H1,         4)  \
-  X(H2,         5)  \
-  X(H3,         6)  \
-  X(H4,         7)  \
-  X(H5,         8)  \
-  X(H6,         9)  \
-  X(Newline,    10) \
-  X(Whitespace, 11) \
-  X(Text,       12) \
-  X(Bold,       13) \
-  X(Italic,     14) \
-  X(BoldItalic, 15) \
-  X(Code,       16)
+#define TOKENS            \
+  X(None,             0)  \
+  /*    Block Tokens    */\
+  X(Root,             1)  \
+  X(Paragraph,        2)  \
+  X(Codeblock,        3)  \
+  X(H1,               4)  \
+  X(H2,               5)  \
+  X(H3,               6)  \
+  X(H4,               7)  \
+  X(H5,               8)  \
+  X(H6,               9)  \
+                          \
+  X(Newline,          10) \
+  X(Whitespace,       11) \
+                          \
+  /*    Inline Tokens   */\
+  X(Text,             12) \
+  X(Strong,           13) \
+  X(StrongOpen,       14) \
+  X(StrongClose,      15) \
+  X(Emph,             16) \
+  X(EmphOpen,         17) \
+  X(EmphClose,        18) \
+  X(StrongEmph,       19) \
+  X(Code,             20)
 // clang-format on
 
 namespace markdown {
@@ -78,6 +86,7 @@ class Scanner {
   std::string_view FlushCurrentLine();
   void Flush();
   void FlushBytes(size_t n);
+  void SkipNextBytes(size_t n);
   bool End();
 
   // Random Access, internal state unaffected
@@ -253,6 +262,7 @@ struct Node {
 // utils
 void ltrim(std::string_view&);
 void trim(std::string_view& sv, size_t lPos = 0, size_t rPos = 0);
+void htrim(std::string_view& sv);
 
 namespace detail {
 struct Marker {
@@ -261,9 +271,9 @@ struct Marker {
 };
 
 inline constexpr Marker markers[] = {
-    {"***", TokenType::BoldItalic}, {"**", TokenType::Bold},
-    {"*", TokenType::Italic},       {"___", TokenType::BoldItalic},
-    {"__", TokenType::Bold},        {"_", TokenType::Italic},
+    {"***", TokenType::StrongEmph}, {"**", TokenType::Strong},
+    {"*", TokenType::Emph},         {"___", TokenType::StrongEmph},
+    {"__", TokenType::Strong},      {"_", TokenType::Emph},
     {"#", TokenType::H1},           {"##", TokenType::H2},
     {"###", TokenType::H3},         {"####", TokenType::H4},
     {"#####", TokenType::H5},       {"######", TokenType::H6},

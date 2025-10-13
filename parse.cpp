@@ -101,7 +101,11 @@ std::string_view Scanner::ScanNextLine() {
 std::string_view Scanner::CurrentLine() {
   if (begin_ == it_)
     return "";
-  return std::string_view(begin_, std::distance(begin_, it_ - 1));
+  std::string_view::iterator it = it_;
+  while ((it - 1) != begin_ && *(it - 1) == '\n') {
+    --it;
+  }
+  return std::string_view(begin_, std::distance(begin_, it));
 }
 
 std::string_view Scanner::FlushCurrentLine() {
@@ -124,6 +128,14 @@ void Scanner::FlushBytes(size_t n) {
   }
   begin_ += n;
   it_ = begin_;
+}
+
+void Scanner::SkipNextBytes(size_t n) {
+  if (std::distance(data_.begin(), it_) + n > data_.size()) {
+    it_ = data_.end();
+    return;
+  }
+  it_ = it_ + n;
 }
 
 bool Scanner::End() {
@@ -241,8 +253,19 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
 
     std::shared_ptr<Node> opener = cur->prev;
     while (opener != stackBottom &&
-           opener != openersBottom[static_cast<int>(cur->dsi.delim)] &&
-           opener->dsi.delim != cur->dsi.delim) {
+           opener != openersBottom[static_cast<int>(cur->dsi.delim)]) {
+      if (opener->dsi.delim == cur->dsi.delim) {
+        if (opener->dsi.type != DelimiterType::Both &&
+            cur->dsi.type != DelimiterType::Both) {
+          break;
+        }
+        if (opener->dsi.number % 3 == 0 && cur->dsi.number % 3 == 0) {
+          break;
+        }
+        if ((opener->dsi.number + cur->dsi.number) % 3) {
+          break;
+        }
+      }
       opener = opener->prev;
     }
 
@@ -254,6 +277,8 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
       std::shared_ptr<Node> temp;
       while ((temp = opener->next) != cur) {
         temp->dsi.tokenPtr->first = TokenType::Text;
+        temp->dsi.tokenPtr->second = std::string_view(
+            temp->dsi.tokenPtr->second.begin(), temp->dsi.number);
         opener->next = temp->next;
         temp->next->prev = opener;
         temp->Detach();
@@ -261,26 +286,28 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
 
       DelimiterStackItem &open = opener->dsi, &close = cur->dsi;
       TokenType type = (open.number >= 2 && close.number >= 2)
-                           ? TokenType::Bold
-                           : TokenType::Italic;
-      int len = 1 + (type == TokenType::Bold);
+                           ? TokenType::Strong
+                           : TokenType::Emph;
+      int len = 1 + (type == TokenType::Strong);
       open.number -= len;
       close.number -= len;
       std::string_view sv(open.tokenPtr->second.begin(), len);
 
       if (open.number == 0) {
-        open.tokenPtr->first = type;
+        open.tokenPtr->first = type + 1;
+        open.tokenPtr->second = sv;
         opener->prev->next = opener->next;
         opener->next->prev = opener->prev;
         opener->Detach();
       } else {
         Tokens::iterator it =
             std::find(candTokens.begin(), candTokens.end(), open.tokenPtr);
-        candTokens.insert(it + 1, std::make_shared<Token>(type, sv));
+        candTokens.insert(it + 1, std::make_shared<Token>(type + 1, sv));
       }
 
       if (close.number == 0) {
-        close.tokenPtr->first = type;
+        close.tokenPtr->first = type + 2;
+        close.tokenPtr->second = sv;
         cur->prev->next = cur->next;
         cur->next->prev = cur->prev;
         cur = cur->next;
@@ -288,7 +315,7 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
       } else {
         Tokens::iterator it =
             std::find(candTokens.begin(), candTokens.end(), close.tokenPtr);
-        candTokens.insert(it, std::make_shared<Token>(type, sv));
+        candTokens.insert(it, std::make_shared<Token>(type + 2, sv));
       }
     }
 
@@ -311,6 +338,8 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
   cur = head->next;
   while (cur != tail) {
     cur->dsi.tokenPtr->first = TokenType::Text;
+    cur->dsi.tokenPtr->second =
+        std::string_view(cur->dsi.tokenPtr->second.begin(), cur->dsi.number);
     cur = cur->next;
     cur->prev->Detach();
   }
@@ -455,7 +484,7 @@ Block Parser::BuildParagraphBlock() {
     size_t pos = line.find_first_not_of(' ');
     if (line.empty() || pos == std::string_view::npos) {
       std::string_view text(begin, count - 1);
-      trim(text);
+      htrim(text);
       paragraph.text = text;
       return paragraph;
     }
@@ -464,7 +493,7 @@ Block Parser::BuildParagraphBlock() {
   }
 
   std::string_view text(begin, count);
-  trim(text);
+  htrim(text);
   paragraph.text = text;
   return paragraph;
 }
@@ -509,25 +538,22 @@ void Parser::AnalyzeInline() {
                 scanner.At(Scanner::CurPos::Cur, -2), c,
                 scanner.At(Scanner::CurPos::Cur, count - 1))) {
           PushCandToken(count);
-          // } else {
-          //   std::cout << "[REJECTED]: LF: "
-          //             << detail::IsLeftFlanking(
-          //                    scanner.At(Scanner::CurPos::Cur, -2),
-          //                    scanner.At(Scanner::CurPos::Cur, count - 1))
-          //             << "\tRF: "
-          //             << detail::IsRightFlanking(
-          //                    scanner.At(Scanner::CurPos::Cur, -2),
-          //                    scanner.At(Scanner::CurPos::Cur, count - 1))
-          //             << std::endl;
+        } else {
+          scanner.SkipNextBytes(count - 1);
         }
       }
     }
     PushCandToken();
 
+    // for (auto token : candTokens_) {
+    //   std::cout << token->first << "\t" << std::quoted(token->second)
+    //             << std::endl;
+    // }
     delimStack.ProcessEmphasis(candTokens_);
     delimStack.debug();
     for (auto token : candTokens_) {
-      std::cout << token->first << "\t" << token->second << std::endl;
+      std::cout << token->first << "\t" << std::quoted(token->second)
+                << std::endl;
     }
     // delimStack.debug();
     delimStack.Clear();
@@ -542,10 +568,14 @@ void Parser::PushCandToken() {
   }
 }
 void Parser::PushCandToken(size_t count) {
-  PushCandToken();
+  std::string_view lexeme = scanner.CurrentLine();
+  if (!lexeme.empty()) {
+    lexeme.remove_suffix(1);
+    candTokens_.push_back(std::make_shared<Token>(TokenType::Text, lexeme));
+  }
   scanner.Flush();
-  std::string_view lexeme =
-      scanner.Scan(count, Scanner::CurPos::BeginIt);  // (it_, count);
+
+  lexeme = scanner.Scan(count, Scanner::CurPos::BeginIt);
   if (lexeme.empty()) {
     std::cerr << "WARNING: Trying to push empty token as a candidate token!"
               << std::endl;
@@ -1034,6 +1064,22 @@ void trim(std::string_view& sv, size_t lPos, size_t rPos) {
   sv.remove_suffix(rPos);
 }
 
+void htrim(std::string_view& sv) {
+  std::string_view::iterator it = sv.begin();
+  int count = 0;
+  while ((it + count) != sv.end() && detail::IsWhitespace(*(it + count))) {
+    count++;
+  }
+  sv.remove_prefix(count);
+
+  count = sv.size() - 1;
+  it = sv.begin();
+  while ((it + count) != sv.end() && detail::IsWhitespace(*(it + count))) {
+    count--;
+  }
+  sv.remove_suffix(sv.size() - count - 1);
+}
+
 TokenType detail::GetMarker(std::string_view marker) {
   for (Marker m : markers) {
     if (m.marker == marker)
@@ -1073,7 +1119,7 @@ bool detail::IsValidDelimiter(char prev, char delim, char next) {
 }
 
 bool detail::IsWhitespace(char c) {
-  return (c == ' ' || c == '\t' || c == '\n') ? true : false;
+  return (c == ' ' || c == '\t' || c == '\n' || c == '\r') ? true : false;
 }
 
 bool detail::IsPunctuation(char c) {
