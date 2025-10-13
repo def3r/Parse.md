@@ -166,54 +166,23 @@ class Parser {
   void PushCandToken();
   void PushCandToken(size_t);
   Block BuildInline();
-  std::string_view curLine_;
 
   static std::string DumpTree(const Tree&, int = 0);
   static std::string DumpTree(const Block&, int = 0);
 
  private:
-  typedef struct StackItem {
-    std::string_view marker;
-    // metadata
-    int index = 0;
-    bool toErase = true;
-  } StackItem;
   enum class ContainerType { Root, Paragraph, Heading };
   enum class BlockType { Root, Paragraph, Heading };
 
-  Scanner scanner = {};
   std::string document_;
-  std::string_view::const_iterator begin_, it_;
-  bool updateBegin_ = false;
-  bool followsWhiteSpace_ = false;
-  bool renderBlank_ = false;
-  Lexemes lexemes_;
+  Scanner scanner = {};
   Tokens candTokens_;
-  StackItem TOS_, TOSm1_;
-  int correction_ = 0;
-  std::deque<StackItem>* syntaxStack_;
+
   ContainerType containerType_ = ContainerType::Root;
   Tokens::iterator itToken_;
   Tree root_ = 0;
   Block block_ = {};
   BlockType blockType_ = BlockType::Root;
-
-  std::string_view::iterator DocumentBegin();
-  std::string_view::iterator DocumentEnd();
-
-  bool IsDelimiter();
-  void ClearStack();
-  bool ToPop(const Token&);
-  void FormatCorrectionInit();
-  void FormatCorrection();
-  void EmptyStack();
-  bool FetchMarker(std::deque<StackItem>& backupStack);
-  void StackCorrection(StackItem& HighItem, StackItem& LowItem);
-  int LookAhead(std::string_view, const char&);
-  void PushLexeme(size_t count);
-  void PushLexeme();
-  void PushToken(std::string_view lexeme);
-  void PushToken(TokenType type, std::string_view lexeme);
 
   Tree FinalPass();
   Tree BuildTree();
@@ -262,7 +231,6 @@ struct Node {
 // utils
 void ltrim(std::string_view&);
 void trim(std::string_view& sv, size_t lPos = 0, size_t rPos = 0);
-void htrim(std::string_view& sv);
 
 namespace detail {
 struct Marker {
@@ -287,6 +255,8 @@ bool IsWhitespace(char);
 bool IsPunctuation(char);
 bool IsLeftFlanking(char prev, char next);
 bool IsRightFlanking(char prev, char next);
+
+void htrim(std::string_view& sv);
 
 }  // namespace detail
 
