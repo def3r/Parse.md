@@ -49,11 +49,11 @@ std::ostream& operator<<(std::ostream&, const TokenType&);
 struct Block;
 class Scanner;
 class Parser;
-class Node;
+struct Node;
 
 typedef std::vector<std::string_view> Lexemes;
 typedef std::pair<TokenType, std::string_view> Token;
-typedef std::vector<Token> Tokens;
+typedef std::vector<std::shared_ptr<Token>> Tokens;
 typedef std::vector<Block> Blocks;
 typedef std::shared_ptr<Node> Tree;
 
@@ -97,6 +97,42 @@ class Scanner {
   bool ValidArgs(int offset, std::string_view::iterator);
 };
 
+class DelimiterStack {
+ public:
+  enum class Delimiter { Asteriks = 0, Underscore = 1 };
+  enum class DelimiterType { Open, Close, Both };
+  typedef struct DelimiterStackItem {
+    Delimiter delim;
+    size_t number;
+    bool isActive;
+    DelimiterType type;
+    std::shared_ptr<Token> tokenPtr;
+  } DelimiterStackItem;
+
+  typedef struct Node {
+    DelimiterStackItem dsi;
+    std::shared_ptr<Node> next, prev;
+
+    Node();
+    Node(DelimiterStackItem dsi,
+         std::shared_ptr<Node> next,
+         std::shared_ptr<Node> prev);
+    void Detach();
+  } Node;
+
+ public:
+  DelimiterStack();
+  void Push(DelimiterStackItem dsi);
+  void Clear();
+  void debug();
+  bool ProcessEmphasis(Tokens& candTokens);
+
+ protected:
+  std::shared_ptr<Node> head, tail, cur;
+  std::shared_ptr<Node> stackBottom;
+  std::shared_ptr<Node> openersBottom[2];
+};
+
 class Parser {
  public:
   Parser();
@@ -116,17 +152,7 @@ class Parser {
   Tokens GetTokens();
   void debug();
 
-  enum class DelimiterType { Asteriks, Underscore };
-  enum class DelimiterState { Open, Close, Both };
-  typedef struct DelimiterStackItem {
-    DelimiterType type;
-    size_t number;
-    bool isActive;
-    DelimiterState delimiterState;
-    int tokenIndex;
-  } DelimiterStackItem;
-  std::vector<DelimiterStackItem> delimiterStack = {};
-
+  DelimiterStack delimStack = {};
   void AnalyzeInline();
   void PushCandToken();
   void PushCandToken(size_t);
@@ -213,7 +239,7 @@ class Parser {
 //   LeafNode(const std::string);
 // };
 
-class Node {
+struct Node {
  public:
   Node(TokenType);
   Node(std::string);

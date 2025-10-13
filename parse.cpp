@@ -1,5 +1,6 @@
 #include "parse.h"
 
+#include <algorithm>
 #include <cstdlib>
 #include <deque>
 #include <iomanip>
@@ -168,6 +169,189 @@ bool Scanner::ValidArgs(int offset, std::string_view::iterator it) {
   if (it == data_.end() && offset >= 0 || it == data_.begin() && offset < 0)
     return false;
   return true;
+}
+
+DelimiterStack::Node::Node() : dsi({}), next(nullptr), prev(nullptr) {}
+
+DelimiterStack::Node::Node(DelimiterStackItem dsi,
+                           std::shared_ptr<Node> next,
+                           std::shared_ptr<Node> prev)
+    : dsi(dsi), next(next), prev(prev) {}
+
+void DelimiterStack::Node::Detach() {
+  this->prev = nullptr;
+  this->next = nullptr;
+}
+
+DelimiterStack::DelimiterStack()
+    : stackBottom(nullptr), openersBottom{nullptr, nullptr} {
+  head = std::make_shared<Node>();
+  tail = std::make_shared<Node>();
+  head->next = tail;
+  tail->prev = head;
+  cur = head;
+}
+
+void DelimiterStack::Push(DelimiterStackItem dsi) {
+  std::shared_ptr<Node> newNode = std::make_shared<Node>(dsi, tail, cur);
+  if (!newNode) {
+    std::cerr << "Unable to allocate memory for New Delimiter Stack node"
+              << std::endl;
+    exit(1);
+  }
+  cur->next = newNode;
+  tail->prev = newNode;
+  cur = newNode;
+}
+
+void DelimiterStack::Clear() {
+  cur = head->next;
+  while (cur != tail) {
+    cur = cur->next;
+    cur->prev->Detach();
+  }
+  head->next = tail;
+  tail->prev = head;
+  cur = head;
+  stackBottom = nullptr;
+  openersBottom[0] = openersBottom[1] = nullptr;
+}
+
+bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
+  size_t size = candTokens.size();
+  // NOTE: Assumption: No Links or Image support yet
+  stackBottom = head;
+  openersBottom[0] = openersBottom[1] = stackBottom;
+  cur = stackBottom->next;
+
+  while (cur != tail) {
+    while (cur != tail && cur->dsi.type == DelimiterType::Open) {
+      // std::cout << cur->dsi.tokenPtr->second << "|" << std::endl;
+      if (openersBottom[static_cast<int>(cur->dsi.delim)] == stackBottom) {
+        openersBottom[static_cast<int>(cur->dsi.delim)] = cur;
+      }
+      cur = cur->next;
+    }
+    // std::cout << "Found !open: " << cur->dsi.tokenPtr->second << "|"
+    //           << std::endl;
+
+    if (cur == tail) {
+      break;
+    }
+
+    std::shared_ptr<Node> opener = cur->prev;
+    while (opener != stackBottom &&
+           opener != openersBottom[static_cast<int>(cur->dsi.delim)] &&
+           opener->dsi.delim != cur->dsi.delim) {
+      opener = opener->prev;
+    }
+
+    // std::cout << "Opener is stackBottom? " << (opener == stackBottom)
+    //           << std::endl;
+
+    // found
+    if (opener != stackBottom && opener->dsi.delim == cur->dsi.delim) {
+      std::shared_ptr<Node> temp;
+      while ((temp = opener->next) != cur) {
+        temp->dsi.tokenPtr->first = TokenType::Text;
+        opener->next = temp->next;
+        temp->next->prev = opener;
+        temp->Detach();
+      }
+
+      DelimiterStackItem &open = opener->dsi, &close = cur->dsi;
+      TokenType type = (open.number >= 2 && close.number >= 2)
+                           ? TokenType::Bold
+                           : TokenType::Italic;
+      int len = 1 + (type == TokenType::Bold);
+      open.number -= len;
+      close.number -= len;
+      std::string_view sv(open.tokenPtr->second.begin(), len);
+
+      if (open.number == 0) {
+        open.tokenPtr->first = type;
+        opener->prev->next = opener->next;
+        opener->next->prev = opener->prev;
+        opener->Detach();
+      } else {
+        Tokens::iterator it =
+            std::find(candTokens.begin(), candTokens.end(), open.tokenPtr);
+        candTokens.insert(it + 1, std::make_shared<Token>(type, sv));
+      }
+
+      if (close.number == 0) {
+        close.tokenPtr->first = type;
+        cur->prev->next = cur->next;
+        cur->next->prev = cur->prev;
+        cur = cur->next;
+        temp->Detach();
+      } else {
+        Tokens::iterator it =
+            std::find(candTokens.begin(), candTokens.end(), close.tokenPtr);
+        candTokens.insert(it, std::make_shared<Token>(type, sv));
+      }
+    }
+
+    // not found
+    else {
+      openersBottom[static_cast<int>(cur->dsi.delim)] = cur->prev;
+      if (cur->dsi.type != DelimiterType::Both) {
+        std::shared_ptr<Node> temp = cur;
+        cur->dsi.tokenPtr->first = TokenType::Text;
+        cur->prev->next = cur->next;
+        cur->next->prev = cur->prev;
+        cur = cur->next;
+        temp->Detach();
+      } else {
+        cur = cur->next;
+      }
+    }
+  }
+
+  cur = head->next;
+  while (cur != tail) {
+    cur->dsi.tokenPtr->first = TokenType::Text;
+    cur = cur->next;
+    cur->prev->Detach();
+  }
+  head->next = tail;
+  tail->prev = head;
+  cur = head;
+
+  return true;
+}
+
+void DelimiterStack::debug() {
+  cur = head->next;
+  while (cur != tail) {
+    auto token = cur->dsi;
+
+    switch (token.delim) {
+      case Delimiter::Asteriks:
+        std::cout << "Asterisks\t";
+        break;
+      case Delimiter::Underscore:
+        std::cout << "Underscore\t";
+        break;
+    }
+    std::cout << token.number << "\t";
+    switch (token.type) {
+      case DelimiterType::Open:
+        std::cout << "Open\t";
+        break;
+      case DelimiterType::Close:
+        std::cout << "Close\t";
+        break;
+      case DelimiterType::Both:
+        std::cout << "Both\t";
+        break;
+    }
+    std::cout << token.tokenPtr << std::endl;
+
+    cur = cur->next;
+  }
+  cur = tail->prev;
+  std::cout << "-------------------\n";
 }
 
 Parser::Parser() {}
@@ -340,35 +524,13 @@ void Parser::AnalyzeInline() {
     }
     PushCandToken();
 
+    delimStack.ProcessEmphasis(candTokens_);
+    delimStack.debug();
     for (auto token : candTokens_) {
-      std::cout << token.first << "\t" << token.second << std::endl;
+      std::cout << token->first << "\t" << token->second << std::endl;
     }
-    for (auto token : delimiterStack) {
-      switch (token.type) {
-        case DelimiterType::Asteriks:
-          std::cout << "Asterisks\t";
-          break;
-        case DelimiterType::Underscore:
-          std::cout << "Underscore\t";
-          break;
-      }
-      std::cout << token.number << "\t";
-      switch (token.delimiterState) {
-        case DelimiterState::Open:
-          std::cout << "Open\t";
-          break;
-        case DelimiterState::Close:
-          std::cout << "Close\t";
-          break;
-        case DelimiterState::Both:
-          std::cout << "Both\t";
-          break;
-      }
-      std::cout << token.tokenIndex << std::endl;
-    }
-    std::cout << "-------------------\n";
-
-    delimiterStack = {};
+    // delimStack.debug();
+    delimStack.Clear();
     candTokens_ = {};
   }
 }
@@ -376,7 +538,7 @@ void Parser::AnalyzeInline() {
 void Parser::PushCandToken() {
   std::string_view lexeme = scanner.CurrentLine();
   if (!lexeme.empty()) {
-    candTokens_.push_back({TokenType::Text, lexeme});
+    candTokens_.push_back(std::make_shared<Token>(TokenType::Text, lexeme));
   }
 }
 void Parser::PushCandToken(size_t count) {
@@ -389,17 +551,22 @@ void Parser::PushCandToken(size_t count) {
               << std::endl;
     return;
   }
-  int tokenIndex = candTokens_.size();
+
+  // NOTE: push after validation of char c
+  candTokens_.push_back(
+      std::make_shared<Token>(detail::GetMarker(lexeme), lexeme));
+  std::shared_ptr<Token> tokenPtr = candTokens_.back();
   char c = scanner.CurrentByte();
   char prev = scanner.At(Scanner::CurPos::Cur, -2);
   char next = scanner.At(Scanner::CurPos::Cur, count - 1);
   // std::cout << prev << "|" << c << "|" << next << "|" << count << std::endl;
 
-  DelimiterStackItem dsi = {
-      .type = (c == '*') ? DelimiterType::Asteriks : DelimiterType::Underscore,
+  DelimiterStack::DelimiterStackItem dsi = {
+      .delim = (c == '*') ? DelimiterStack::Delimiter::Asteriks
+                          : DelimiterStack::Delimiter::Underscore,
       .number = count,
       .isActive = true,
-      .tokenIndex = tokenIndex,
+      .tokenPtr = tokenPtr,
   };
 
   if (c == '*') {
@@ -413,13 +580,13 @@ void Parser::PushCandToken(size_t count) {
 
     switch (state) {
       case 1:
-        dsi.delimiterState = DelimiterState::Open;
+        dsi.type = DelimiterStack::DelimiterType::Open;
         break;
       case 2:
-        dsi.delimiterState = DelimiterState::Close;
+        dsi.type = DelimiterStack::DelimiterType::Close;
         break;
       case 3:
-        dsi.delimiterState = DelimiterState::Both;
+        dsi.type = DelimiterStack::DelimiterType::Both;
         break;
     }
 
@@ -436,24 +603,24 @@ void Parser::PushCandToken(size_t count) {
 
     switch (state) {
       case 1:
-        dsi.delimiterState = DelimiterState::Open;
+        dsi.type = DelimiterStack::DelimiterType::Open;
         break;
       case 2:
-        dsi.delimiterState = DelimiterState::Close;
+        dsi.type = DelimiterStack::DelimiterType::Close;
         break;
       case 3:
-        dsi.delimiterState = DelimiterState::Both;
+        dsi.type = DelimiterStack::DelimiterType::Both;
         break;
     }
 
   } else {
-    std::cerr << "Unhandled Delimiter " << std::quoted(std::to_string(*it_))
+    std::cerr << "Unhandled Delimiter " << std::quoted(std::to_string(c))
               << std::endl;
     std::exit(1);
   }
 
-  delimiterStack.emplace_back(dsi);
-  candTokens_.push_back({detail::GetMarker(lexeme), lexeme});
+  delimStack.Push(dsi);
+  // delimiterStack.emplace_back(dsi);
 
   scanner.FlushBytes(count);
 }
@@ -482,10 +649,11 @@ void Parser::Tokenize(std::string_view doc) {
 void Parser::PushToken(std::string_view lexeme) {
   // std::cout << Parser::GetMarker(lexeme) << "|" << lexeme <<
   // "|" << std::endl;
-  candTokens_.push_back({detail::GetMarker(lexeme), lexeme});
+  candTokens_.push_back(
+      std::make_shared<Token>(detail::GetMarker(lexeme), lexeme));
 }
 void Parser::PushToken(TokenType type, std::string_view lexeme) {
-  candTokens_.push_back({type, lexeme});
+  candTokens_.push_back(std::make_shared<Token>(type, lexeme));
 }
 
 void Parser::LexAnalysis() {
@@ -519,7 +687,7 @@ Tokens Parser::GetTokens() {
 
 void Parser::debug() {
   for (auto& token : candTokens_) {
-    std::cout << TokenStr(token.first) << "\t\t" << token.second << "\n";
+    std::cout << TokenStr(token->first) << "\t\t" << token->second << "\n";
   }
 }
 
@@ -542,26 +710,27 @@ void Parser::FormatCorrectionInit() {
   for (const auto& token : candTokens_) {
     index++;
     // Skip for NEWLINE, WHITESPACE, TEXT
-    if (token.first >= TokenType::Newline && token.first <= TokenType::Text) {
+    if (token->first >= TokenType::Newline && token->first <= TokenType::Text) {
       continue;
     }
 
-    if (token.first >= TokenType::H1 && token.first <= TokenType::H6) {
+    if (token->first >= TokenType::H1 && token->first <= TokenType::H6) {
       if (index == 0) {
         continue;
       }
-      TokenType prevToken = candTokens_[index - 1].first;
+      TokenType prevToken = candTokens_[index - 1]->first;
       if (prevToken != TokenType::Newline &&
           prevToken != TokenType::Whitespace) {
-        candTokens_.insert(candTokens_.begin() + index,
-                           {TokenType::Text, token.second});
+        candTokens_.insert(
+            candTokens_.begin() + index,
+            std::make_shared<Token>(TokenType::Text, token->second));
         candTokens_.erase(candTokens_.begin() + index + 1);
       }
       continue;
     }
 
-    if (!ToPop(token)) {
-      syntaxStack.push_front({token.second, index, true});
+    if (!ToPop(*token)) {
+      syntaxStack.push_front({token->second, index, true});
     } else {
       syntaxStack.pop_front();
     }
@@ -588,7 +757,8 @@ void Parser::FormatCorrection() {
         int customCorr =
             (lastConsumed == LastConsumed::Top) ? ++correction_ : correction_++;
         candTokens_.insert(candTokens_.begin() + TOS_.index + customCorr,
-                           {detail::GetMarker(TOS_.marker), TOS_.marker});
+                           std::make_shared<Token>(
+                               detail::GetMarker(TOS_.marker), TOS_.marker));
       }
       lastConsumed = LastConsumed::NONE;
     } else if (TOS_.marker.length() > TOSm1_.marker.length()) {
@@ -612,7 +782,7 @@ void Parser::EmptyStack() {
   while (!syntaxStack_->empty()) {
     candTokens_.insert(
         candTokens_.begin() + syntaxStack_->back().index + ++correction_,
-        {TokenType::Text, syntaxStack_->back().marker});
+        std::make_shared<Token>(TokenType::Text, syntaxStack_->back().marker));
     if (syntaxStack_->back().toErase) {
       candTokens_.erase(candTokens_.begin() + syntaxStack_->back().index +
                         --correction_);
@@ -649,7 +819,8 @@ void Parser::StackCorrection(StackItem& HighItem, StackItem& LowItem) {
 
   if (!LowItem.toErase) {
     candTokens_.insert(candTokens_.begin() + LowItem.index + correction_++,
-                       {detail::GetMarker(LowItem.marker), LowItem.marker});
+                       std::make_shared<Token>(
+                           detail::GetMarker(LowItem.marker), LowItem.marker));
   }
   if (syntaxStack_->back().toErase) {
     candTokens_.erase(candTokens_.begin() + syntaxStack_->back().index +
@@ -658,7 +829,8 @@ void Parser::StackCorrection(StackItem& HighItem, StackItem& LowItem) {
   }
   candTokens_.insert(
       candTokens_.begin() + syntaxStack_->back().index + ++correction_,
-      {detail::GetMarker(LowItem.marker), LowItem.marker});
+      std::make_shared<Token>(detail::GetMarker(LowItem.marker),
+                              LowItem.marker));
 }
 
 int Parser::LookAhead(std::string_view line, const char& c) {
@@ -673,11 +845,11 @@ int Parser::LookAhead(std::string_view line, const char& c) {
 Tree Parser::BuildTree() {
   if (itToken_ == this->candTokens_.end())
     return nullptr;
-  if (itToken_->first == TokenType::None) {
+  if ((*itToken_)->first == TokenType::None) {
     itTokenInc();
     return nullptr;
   }
-  if (isHeading(itToken_->first) && !validHeading()) {
+  if (isHeading((*itToken_)->first) && !validHeading()) {
     return nullptr;
   }
   if (isParagraphEnd()) {
@@ -685,8 +857,8 @@ Tree Parser::BuildTree() {
   }
 
   // clang-format off
-  TokenType tokenType = itToken_->first == TokenType::Whitespace
-                        ? TokenType::Text : itToken_->first;
+  TokenType tokenType = (*itToken_)->first == TokenType::Whitespace
+                        ? TokenType::Text : (*itToken_)->first;
   if (tokenType == TokenType::Newline) {
     itTokenInc();
     return this->containerType_ == ContainerType::Paragraph
@@ -737,19 +909,19 @@ void Parser::BuildParagraph(Node& node) {
 
 void Parser::BuildText(Node& node) {
   while (itToken_ != this->candTokens_.end() &&
-         (itToken_->first == TokenType::Text ||
-          itToken_->first == TokenType::Whitespace)) {
-    node.value += itToken_->second;
+         ((*itToken_)->first == TokenType::Text ||
+          (*itToken_)->first == TokenType::Whitespace)) {
+    node.value += (*itToken_)->second;
     itTokenInc();
   }
 }
 
 void Parser::BuildChildren(Node& node) {
   TokenType endTokenType =
-      (isHeading(node.type)) ? TokenType::Newline : itToken_->first;
+      (isHeading(node.type)) ? TokenType::Newline : (*itToken_)->first;
   itTokenInc();
   while (itToken_ != this->candTokens_.end() &&
-         itToken_->first != endTokenType) {
+         (*itToken_)->first != endTokenType) {
     if (isHeading(node.type)) {
       this->containerType_ = ContainerType::Heading;
     }
@@ -763,25 +935,26 @@ void Parser::BuildChildren(Node& node) {
 bool Parser::validHeading() {
   Tokens::iterator itNext = itToken_ + 1;
   if (itNext == this->candTokens_.end()) {
-    itToken_->first = TokenType::Text;
-  } else if (itNext->first == TokenType::Whitespace) {
-    itNext->first = TokenType::None;
-  } else if (itNext->first == TokenType::Text && itNext->second[0] == ' ') {
+    (*itToken_)->first = TokenType::Text;
+  } else if ((*itNext)->first == TokenType::Whitespace) {
+    (*itNext)->first = TokenType::None;
+  } else if ((*itNext)->first == TokenType::Text &&
+             (*itNext)->second[0] == ' ') {
     if (this->containerType_ == ContainerType::Paragraph) {
       this->containerType_ = ContainerType::Heading;
       return false;
     }
-    ltrim(itNext->second);
+    ltrim((*itNext)->second);
   } else {
-    itToken_->first = TokenType::Text;
+    (*itToken_)->first = TokenType::Text;
   }
   return true;
 }
 
 bool Parser::isParagraphEnd() const {
   return (itToken_ + 1) != this->candTokens_.end() &&
-         itToken_->first == TokenType::Newline &&
-         (itToken_ + 1)->first == TokenType::Newline &&
+         (*itToken_)->first == TokenType::Newline &&
+         (*(itToken_ + 1))->first == TokenType::Newline &&
          this->containerType_ == ContainerType::Paragraph;
 }
 
