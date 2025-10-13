@@ -1,3 +1,6 @@
+> [!NOTE]
+> CommonMark compliant improved version under development [@CommonMark branch](https://github.com/def3r/Parse.md/tree/CommonMark)
+
 # `Parse.md`
 A Markdown parser library written in C++
 
