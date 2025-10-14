@@ -33,7 +33,7 @@ class Parser {
   void AnalyzeInline();
   void PushCandToken();
   void PushCandToken(size_t);
-  Block BuildInline();
+  Block BuildInline(Tokens::iterator it);
 
   static std::string DumpTree(const Tree&, int = 0);
   static std::string DumpTree(const Block&, int = 0);

@@ -19,7 +19,7 @@ inline constexpr Marker markers[] = {
     {"#", TokenType::H1},           {"##", TokenType::H2},
     {"###", TokenType::H3},         {"####", TokenType::H4},
     {"#####", TokenType::H5},       {"######", TokenType::H6},
-    {"\n", TokenType::Newline},
+    {"\n", TokenType::Softbreak},
 };
 
 TokenType GetMarker(std::string_view str);

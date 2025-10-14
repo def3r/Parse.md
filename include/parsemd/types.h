@@ -23,7 +23,7 @@ namespace markdown {
   X(H5,               8)  \
   X(H6,               9)  \
                           \
-  X(Newline,          10) \
+  X(Softbreak,        10) \
   X(Whitespace,       11) \
                           \
   /*    Inline Tokens   */\

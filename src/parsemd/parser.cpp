@@ -2,6 +2,7 @@
 #include "parsemd/delimiterstack.h"
 #include "parsemd/internal.h"
 #include "parsemd/node.h"
+#include "parsemd/types.h"
 #include "parsemd/utils.h"
 
 #include <cstdlib>
@@ -106,11 +107,54 @@ void Parser::AnalyzeBlocks(std::string_view doc) {
   }
 }
 
-Block Parser::BuildInline() {
-  Block b;
+Block Parser::BuildInline(Tokens::iterator it) {
+  if (candTokens_.empty() || it == candTokens_.end())
+    return {};
+
+  Block b = {
+      .type = TokenType::None,
+      .isOpen = true,
+      .text = "",
+      .children = {},
+  };
+
+  TokenType type = (*it)->first;
+  if (type == TokenType::Text) {
+    b.type = TokenType::Text;
+    Tokens::iterator begin = it;
+    size_t count = 0;
+    while (it != candTokens_.end() && (*it)->first == TokenType::Text) {
+      count += (*it)->second.size();
+      ++it;
+    }
+    b.text = std::string_view((*begin)->second.begin(), count);
+    // PERF: Probably consider using a list instead of vector?
+    candTokens_.erase(begin, it);
+  }
+
+  else if (type == TokenType::Softbreak) {
+    b.type = TokenType::Softbreak;
+    candTokens_.erase(it);
+  }
+
+  else if (type == TokenType::EmphOpen) {
+    b.type = TokenType::Emph;
+    while ((*(it + 1))->first != TokenType::EmphClose) {
+      b.children.push_back(BuildInline(it + 1));
+    }
+    candTokens_.erase(it, it + 2);
+  }
+
+  else if (type == TokenType::StrongOpen) {
+    b.type = TokenType::Strong;
+    while ((*(it + 1))->first != TokenType::StrongClose) {
+      b.children.push_back(BuildInline(it + 1));
+    }
+    candTokens_.erase(it, it + 2);
+  }
 
   return b;
-}
+}  // namespace markdown
 
 void Parser::AnalyzeInline() {
   if (block_.type == TokenType::None) {
@@ -123,8 +167,12 @@ void Parser::AnalyzeInline() {
     while (!scanner.End()) {
       char c = scanner.ScanNextByte();
       if (c == '\n') {
-        // count = 1;
-        // PushCandToken(count);
+        PushCandToken();
+        scanner.Flush();
+        std::string_view lexeme = scanner.Scan(1, Scanner::CurPos::BeginIt);
+        candTokens_.push_back(
+            std::make_shared<Token>(TokenType::Softbreak, lexeme));
+        scanner.FlushBytes(1);
       } else if (internal::IsDelimiter(c)) {
         count = scanner.LookAhead(Scanner::CurPos::Cur, -1);
         if (internal::IsValidDelimiter(
@@ -142,21 +190,26 @@ void Parser::AnalyzeInline() {
     //   std::cout << token->first << "\t" << std::quoted(token->second)
     //             << std::endl;
     // }
+    // delimStack.debug();
     delimStack.ProcessEmphasis(candTokens_);
-    delimStack.debug();
-    for (auto token : candTokens_) {
-      std::cout << token->first << "\t" << std::quoted(token->second)
-                << std::endl;
-    }
+    // for (auto token : candTokens_) {
+    //   std::cout << token->first << "\t" << std::quoted(token->second)
+    //             << std::endl;
+    // }
     // delimStack.debug();
     delimStack.Clear();
+
+    while (!candTokens_.empty()) {
+      block.children.push_back(BuildInline(candTokens_.begin()));
+    }
+    block.text = {};
     candTokens_ = {};
   }
 }
 
 void Parser::PushCandToken() {
   std::string_view lexeme = scanner.CurrentLine();
-  if (!lexeme.empty()) {
+  if (!lexeme.empty() && lexeme != "\n") {
     candTokens_.push_back(std::make_shared<Token>(TokenType::Text, lexeme));
   }
 }
@@ -294,7 +347,7 @@ Tree Parser::BuildTree() {
   // clang-format off
   TokenType tokenType = (*itToken_)->first == TokenType::Whitespace
                         ? TokenType::Text : (*itToken_)->first;
-  if (tokenType == TokenType::Newline) {
+  if (tokenType == TokenType::Softbreak) {
     itTokenInc();
     return this->containerType_ == ContainerType::Paragraph
            ? std::make_shared<Node>(" ") : nullptr;
@@ -353,7 +406,7 @@ void Parser::BuildText(Node& node) {
 
 void Parser::BuildChildren(Node& node) {
   TokenType endTokenType =
-      (isHeading(node.type)) ? TokenType::Newline : (*itToken_)->first;
+      (isHeading(node.type)) ? TokenType::Softbreak : (*itToken_)->first;
   itTokenInc();
   while (itToken_ != this->candTokens_.end() &&
          (*itToken_)->first != endTokenType) {
@@ -388,8 +441,8 @@ bool Parser::validHeading() {
 
 bool Parser::isParagraphEnd() const {
   return (itToken_ + 1) != this->candTokens_.end() &&
-         (*itToken_)->first == TokenType::Newline &&
-         (*(itToken_ + 1))->first == TokenType::Newline &&
+         (*itToken_)->first == TokenType::Softbreak &&
+         (*(itToken_ + 1))->first == TokenType::Softbreak &&
          this->containerType_ == ContainerType::Paragraph;
 }
 
