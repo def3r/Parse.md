@@ -11,14 +11,13 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace markdown {
 
 Parser::Parser() {}
 
-Block Parser::GetBlock() {
-  return block_;
+Node Parser::GetBlock() {
+  return std::static_pointer_cast<NodeBase>(block_);
 }
 
 void Parser::AssignDocument(std::string_view doc) {
@@ -26,7 +25,7 @@ void Parser::AssignDocument(std::string_view doc) {
   document_ = doc;
 }
 
-Block Parser::BuildBlocks() {
+Node Parser::BuildBlocks() {
   std::string_view line;
   while ((line = scanner.ScanNextLine()) != "" || !scanner.End()) {
     if (line.empty()) {
@@ -43,12 +42,9 @@ Block Parser::BuildBlocks() {
       if (scnr.followedByWhiteSpace_ &&
           internal::GetMarker(marker) != TokenType::Text) {
         markdown::trim(line, pos + count + 1);
-        return {
-            .type = internal::GetMarker(marker),
-            .isOpen = false,
-            .text = line,
-            .children = {},
-        };
+        Block node = std::make_shared<BlockNode>(internal::GetMarker(marker));
+        node->text = line;
+        return std::static_pointer_cast<NodeBase>(node);
       }
     }
 
@@ -62,13 +58,8 @@ Block Parser::BuildBlocks() {
   return {};
 }
 
-Block Parser::BuildParagraphBlock() {
-  Block paragraph = Block{
-      .type = TokenType::Paragraph,
-      .isOpen = false,
-      .text = {},
-      .children = {},
-  };
+Node Parser::BuildParagraphBlock() {
+  Block paragraph = std::make_shared<BlockNode>(TokenType::Paragraph);
   std::string_view line = scanner.CurrentLine();
   std::string_view::iterator begin = line.begin();
   size_t count = 0;
@@ -79,99 +70,100 @@ Block Parser::BuildParagraphBlock() {
     if (line.empty() || pos == std::string_view::npos) {
       std::string_view text(begin, count - 1);
       internal::htrim(text);
-      paragraph.text = text;
-      return paragraph;
+      paragraph->text = text;
+      return std::static_pointer_cast<NodeBase>(paragraph);
     }
+
     count += line.size() + 1;
     line = scanner.ScanNextLine();
   }
 
   std::string_view text(begin, count);
   internal::htrim(text);
-  paragraph.text = text;
-  return paragraph;
+  paragraph->text = text;
+  return std::static_pointer_cast<NodeBase>(paragraph);
 }
 
 void Parser::AnalyzeBlocks(std::string_view doc) {
   AssignDocument(doc);
-  scanner.Init(doc);
-  block_.type = TokenType::Root;
-  block_.text = "";
+  AnalyzeBlocks();
+}
+void Parser::AnalyzeBlocks() {
+  scanner.Init(document_);
+  block_ = std::make_shared<BlockNode>(TokenType::Root);
 
   while (!scanner.End()) {
     blockType_ = BlockType::Root;
-    Block child = BuildBlocks();
-    if (child.type != TokenType::None) {
-      block_.children.push_back(child);
+    Node child = BuildBlocks();
+    if (child->type != TokenType::None) {
+      block_->children.push_back(child);
     }
   }
 }
 
-Block Parser::BuildInline(Tokens::iterator it) {
+Node Parser::BuildInline(Tokens::iterator it) {
   if (candTokens_.empty() || it == candTokens_.end())
     return {};
 
-  Block b = {
-      .type = TokenType::None,
-      .isOpen = true,
-      .text = "",
-      .children = {},
-  };
-
-  TokenType type = (*it)->first;
+  TokenType type = it->first;
   if (type == TokenType::Text) {
-    b.type = TokenType::Text;
     Tokens::iterator begin = it;
     size_t count = 0;
-    while (it != candTokens_.end() && (*it)->first == TokenType::Text) {
-      count += (*it)->second.size();
+    while (it != candTokens_.end() && it->first == TokenType::Text) {
+      count += it->second.size();
       ++it;
     }
-    b.text = std::string_view((*begin)->second.begin(), count);
-    // PERF: Probably consider using a list instead of vector?
+    Text b = std::make_shared<TextNode>(
+        TokenType::Text, std::string(begin->second.begin(), count));
     candTokens_.erase(begin, it);
+    return b;
   }
 
-  else if (type == TokenType::Softbreak) {
-    b.type = TokenType::Softbreak;
+  Inline b = std::make_shared<InlineNode>(TokenType::None);
+  if (type == TokenType::Softbreak) {
+    b->type = TokenType::Softbreak;
     candTokens_.erase(it);
   }
 
   else if (type == TokenType::EmphOpen) {
-    b.type = TokenType::Emph;
-    while ((*(it + 1))->first != TokenType::EmphClose) {
-      b.children.push_back(BuildInline(it + 1));
+    b->type = TokenType::Emph;
+    while (std::next(it)->first != TokenType::EmphClose) {
+      b->children.push_back(BuildInline(std::next(it)));
     }
-    candTokens_.erase(it, it + 2);
+    candTokens_.erase(it, std::next(std::next(it)));
   }
 
   else if (type == TokenType::StrongOpen) {
-    b.type = TokenType::Strong;
-    while ((*(it + 1))->first != TokenType::StrongClose) {
-      b.children.push_back(BuildInline(it + 1));
+    b->type = TokenType::Strong;
+    while (std::next(it)->first != TokenType::StrongClose) {
+      b->children.push_back(BuildInline(std::next(it)));
     }
-    candTokens_.erase(it, it + 2);
+    candTokens_.erase(it, std::next(std::next(it)));
   }
 
   return b;
-}  // namespace markdown
+}
 
 void Parser::AnalyzeInline() {
-  if (block_.type == TokenType::None) {
+  if (block_->type == TokenType::None) {
     return;
   }
 
   int count = 1;
-  for (Block& block : block_.children) {
-    scanner.Init(block.text);
+  for (Node& node : block_->children) {
+    if (node->type < TokenType::Root || node->type > TokenType::H6) {
+      continue;
+    }
+    Block block = BlockNodePtr(node);
+
+    scanner.Init(block->text);
     while (!scanner.End()) {
       char c = scanner.ScanNextByte();
       if (c == '\n') {
         PushCandToken();
         scanner.Flush();
         std::string_view lexeme = scanner.Scan(1, Scanner::CurPos::BeginIt);
-        candTokens_.push_back(
-            std::make_shared<Token>(TokenType::Softbreak, lexeme));
+        candTokens_.emplace_back(TokenType::Softbreak, lexeme);
         scanner.FlushBytes(1);
       } else if (internal::IsDelimiter(c)) {
         count = scanner.LookAhead(Scanner::CurPos::Cur, -1);
@@ -200,9 +192,9 @@ void Parser::AnalyzeInline() {
     delimStack.Clear();
 
     while (!candTokens_.empty()) {
-      block.children.push_back(BuildInline(candTokens_.begin()));
+      block->children.push_back(BuildInline(candTokens_.begin()));
     }
-    block.text = {};
+    block->text = {};
     candTokens_ = {};
   }
 }
@@ -210,14 +202,15 @@ void Parser::AnalyzeInline() {
 void Parser::PushCandToken() {
   std::string_view lexeme = scanner.CurrentLine();
   if (!lexeme.empty() && lexeme != "\n") {
-    candTokens_.push_back(std::make_shared<Token>(TokenType::Text, lexeme));
+    candTokens_.emplace_back(TokenType::Text, lexeme);
   }
 }
+
 void Parser::PushCandToken(size_t count) {
   std::string_view lexeme = scanner.CurrentLine();
   if (!lexeme.empty()) {
     lexeme.remove_suffix(1);
-    candTokens_.push_back(std::make_shared<Token>(TokenType::Text, lexeme));
+    candTokens_.emplace_back(TokenType::Text, lexeme);
   }
   scanner.Flush();
 
@@ -229,13 +222,11 @@ void Parser::PushCandToken(size_t count) {
   }
 
   // NOTE: push after validation of char c
-  candTokens_.push_back(
-      std::make_shared<Token>(internal::GetMarker(lexeme), lexeme));
-  std::shared_ptr<Token> tokenPtr = candTokens_.back();
+  candTokens_.emplace_back(internal::GetMarker(lexeme), lexeme);
+  Tokens::iterator tokenPtr = std::prev(candTokens_.end());
   char c = scanner.CurrentByte();
   char prev = scanner.At(Scanner::CurPos::Cur, -2);
   char next = scanner.At(Scanner::CurPos::Cur, count - 1);
-  // std::cout << prev << "|" << c << "|" << next << "|" << count << std::endl;
 
   DelimiterStack::DelimiterStackItem dsi = {
       .delim = (c == '*') ? DelimiterStack::Delimiter::Asteriks
@@ -243,7 +234,7 @@ void Parser::PushCandToken(size_t count) {
       .number = count,
       .isActive = true,
       .type = DelimiterStack::DelimiterType::Open,
-      .tokenPtr = tokenPtr,
+      .tokenIt = tokenPtr,
   };
 
   if (c == '*') {
@@ -299,196 +290,52 @@ void Parser::PushCandToken(size_t count) {
   }
 
   delimStack.Push(dsi);
-  // delimiterStack.emplace_back(dsi);
 
   scanner.FlushBytes(count);
 }
 
-void Parser::Tokenize(std::string_view doc) {
-  AssignDocument(doc);
-}
+// void Parser::Tokenize(std::string_view doc) {
+//   AssignDocument(doc);
+// }
 
-void Parser::LexAnalysis() {}
-
-Tree Parser::Parse() {
-  FinalPass();
-  return this->root_;
+Node Parser::Parse() {
+  AnalyzeBlocks();
+  AnalyzeInline();
+  return GetBlock();
 }
-Tree Parser::Parse(std::string_view doc) {
-  Tokenize(doc);
-  LexAnalysis();
+Node Parser::Parse(std::string_view doc) {
+  AnalyzeBlocks(doc);
+  AnalyzeInline();
   return Parse();
+}
+
+Node Parser::GetRoot() {
+  return GetBlock();
 }
 
 Tokens Parser::GetTokens() {
   return candTokens_;
 }
 
-void Parser::debug() {
-  for (auto& token : candTokens_) {
-    std::cout << TokenStr(token->first) << "\t\t" << token->second << "\n";
-  }
-}
-
-Tree Parser::BuildTree() {
-  if (itToken_ == this->candTokens_.end())
-    return nullptr;
-  if ((*itToken_)->first == TokenType::None) {
-    itTokenInc();
-    return nullptr;
-  }
-  if (isHeading((*itToken_)->first) && !validHeading()) {
-    return nullptr;
-  }
-  if (isParagraphEnd()) {
-    return nullptr;
-  }
-
-  // clang-format off
-  TokenType tokenType = (*itToken_)->first == TokenType::Whitespace
-                        ? TokenType::Text : (*itToken_)->first;
-  if (tokenType == TokenType::Softbreak) {
-    itTokenInc();
-    return this->containerType_ == ContainerType::Paragraph
-           ? std::make_shared<Node>(" ") : nullptr;
-  }
-  if (this->containerType_ == ContainerType::Root && !isHeading(tokenType)) {
-    tokenType = TokenType::Paragraph;
-    this->containerType_ = ContainerType::Paragraph;
-  }
-  // clang-format on
-
-  std::shared_ptr<Node> node = std::make_shared<Node>(tokenType);
-  if (tokenType == TokenType::Paragraph) {
-    BuildParagraph(*node);
-  } else if (tokenType == TokenType::Text) {
-    BuildText(*node);
-  } else {
-    BuildChildren(*node);
-    itTokenInc();
-  }
-
-  return node;
-}
-
-Tokens::iterator Parser::itTokenInc() {
-  return itTokenInc(1);
-}
-Tokens::iterator Parser::itTokenInc(int inc) {
-  Tokens::iterator cur = itToken_;
-  itToken_ = (itToken_ == this->candTokens_.end()) ? itToken_ : itToken_ + inc;
-  return cur;
-}
-
-void Parser::BuildParagraph(Node& node) {
-  while (itToken_ != this->candTokens_.end()) {
-    this->containerType_ = ContainerType::Paragraph;
-    std::shared_ptr<Node> child = BuildTree();
-    if (child != nullptr) {
-      node.children.push_back(child);
-    } else if (isParagraphEnd()) {
-      itToken_ = itToken_ + 2;
-      return;
-    } else if (this->containerType_ == ContainerType::Heading) {
-      return;
-    }
-  }
-}
-
-void Parser::BuildText(Node& node) {
-  while (itToken_ != this->candTokens_.end() &&
-         ((*itToken_)->first == TokenType::Text ||
-          (*itToken_)->first == TokenType::Whitespace)) {
-    node.value += (*itToken_)->second;
-    itTokenInc();
-  }
-}
-
-void Parser::BuildChildren(Node& node) {
-  TokenType endTokenType =
-      (isHeading(node.type)) ? TokenType::Softbreak : (*itToken_)->first;
-  itTokenInc();
-  while (itToken_ != this->candTokens_.end() &&
-         (*itToken_)->first != endTokenType) {
-    if (isHeading(node.type)) {
-      this->containerType_ = ContainerType::Heading;
-    }
-    std::shared_ptr<Node> child = BuildTree();
-    if (child != nullptr) {
-      node.children.push_back(child);
-    }
-  }
-}
-
-bool Parser::validHeading() {
-  Tokens::iterator itNext = itToken_ + 1;
-  if (itNext == this->candTokens_.end()) {
-    (*itToken_)->first = TokenType::Text;
-  } else if ((*itNext)->first == TokenType::Whitespace) {
-    (*itNext)->first = TokenType::None;
-  } else if ((*itNext)->first == TokenType::Text &&
-             (*itNext)->second[0] == ' ') {
-    if (this->containerType_ == ContainerType::Paragraph) {
-      this->containerType_ = ContainerType::Heading;
-      return false;
-    }
-    ltrim((*itNext)->second);
-  } else {
-    (*itToken_)->first = TokenType::Text;
-  }
-  return true;
-}
-
-bool Parser::isParagraphEnd() const {
-  return (itToken_ + 1) != this->candTokens_.end() &&
-         (*itToken_)->first == TokenType::Softbreak &&
-         (*(itToken_ + 1))->first == TokenType::Softbreak &&
-         this->containerType_ == ContainerType::Paragraph;
-}
-
-Tree Parser::GetRoot() {
-  return this->root_;
-}
-
-Tree Parser::FinalPass() {
-  root_ = std::make_shared<Node>(TokenType::Root);
-  itToken_ = this->candTokens_.begin();
-
-  while (itToken_ != this->candTokens_.end()) {
-    this->containerType_ = ContainerType::Root;
-    std::shared_ptr<Node> child = BuildTree();
-    if (child != nullptr)
-      root_->children.push_back(child);
-  }
-
-  return root_;
-}
-
-std::string Parser::DumpTree(const Block& node, int depth) {
-  std::stringstream ss;
-  ss << std::string(depth * 2, ' ') << node.type;
-  if (!node.text.empty()) {
-    ss << ' ' << std::quoted(node.text);
-  }
-  ss << "\n";
-  for (auto child : node.children) {
-    ss << DumpTree(child, depth + 1);
-  }
-
-  return ss.str();
-}
-
-std::string Parser::DumpTree(const Tree& node, int depth) {
-  if (node == nullptr)
-    return "";
-
+std::string Parser::DumpTree(const Node& node, int depth) {
   std::stringstream ss;
   ss << std::string(depth * 2, ' ') << node->type;
-  if (!node->value.empty()) {
-    ss << ' ' << node->value;
+  if (IsText(node->type)) {
+    ss << ' ' << std::quoted(TextNodePtr(node)->text);
+    ss << "\n";
+    return ss.str();
   }
+
+  auto cnode = ContainerNodePtr(node);
+  if (IsBlock(node->type) && node->type != TokenType::Root) {
+    auto bnode = BlockNodePtr(node);
+    if (!bnode->text.empty()) {
+      ss << ' ' << std::quoted(bnode->text);
+    }
+  }
+
   ss << "\n";
-  for (auto child : node->children) {
+  for (auto child : cnode->children) {
     ss << DumpTree(child, depth + 1);
   }
 

@@ -1,6 +1,7 @@
 #ifndef PARSEMD_PARSE_TYPES_H_
 #define PARSEMD_PARSE_TYPES_H_
 
+#include <list>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -43,24 +44,41 @@ enum class TokenType {
   TOKENS
 #undef X
 };
-
-#define isHeading(token) (token >= TokenType::H1 && token <= TokenType::H6)
 TokenType operator+(TokenType, int);
-
 const std::string TokenStr(const TokenType&);
 std::ostream& operator<<(std::ostream&, const TokenType&);
 
-// clang-format off
-struct Block;
-class  Scanner;
-class  Parser;
-struct Node;
+inline bool IsHeading(TokenType token) {
+  return token >= TokenType::H1 && token <= TokenType::H6;
+}
+inline bool IsBlock(TokenType token) {
+  return token >= TokenType::Root && token <= TokenType::H6;
+}
+inline bool IsInline(TokenType token) {
+  return token > TokenType::Text && token <= TokenType::Code;
+}
+inline bool IsText(TokenType token) {
+  return token == TokenType::Text;
+}
 
-typedef std::vector<std::string_view>          Lexemes;
-typedef std::pair<TokenType, std::string_view> Token;
-typedef std::vector<std::shared_ptr<Token>>    Tokens;
-typedef std::vector<Block>                     Blocks;
-typedef std::shared_ptr<Node>                  Tree;
+// clang-format off
+struct NodeBase;
+struct ContainerNode;
+struct BlockNode;
+struct InlineNode;
+struct TextNode;
+
+class Scanner;
+class Parser;
+
+using Token     = std::pair<TokenType, std::string_view>;
+using Tokens    = std::list<Token>;
+using Node      = std::shared_ptr<NodeBase>;
+using Nodes     = std::vector<Node>;
+using Container = std::shared_ptr<ContainerNode>;
+using Block     = std::shared_ptr<BlockNode>;
+using Inline    = std::shared_ptr<InlineNode>;
+using Text      = std::shared_ptr<TextNode>;
 // clang-format on
 
 }  // namespace markdown

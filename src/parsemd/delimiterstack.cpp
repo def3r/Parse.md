@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <iostream>
 
 #include "parsemd/delimiterstack.h"
@@ -99,9 +98,9 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
     if (opener != stackBottom && opener->dsi.delim == cur->dsi.delim) {
       std::shared_ptr<Node> temp;
       while ((temp = opener->next) != cur) {
-        temp->dsi.tokenPtr->first = TokenType::Text;
-        temp->dsi.tokenPtr->second = std::string_view(
-            temp->dsi.tokenPtr->second.begin(), temp->dsi.number);
+        temp->dsi.tokenIt->first = TokenType::Text;
+        temp->dsi.tokenIt->second = std::string_view(
+            temp->dsi.tokenIt->second.begin(), temp->dsi.number);
         opener->next = temp->next;
         temp->next->prev = opener;
         temp->Detach();
@@ -114,31 +113,27 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
       int len = 1 + (type == TokenType::Strong);
       open.number -= len;
       close.number -= len;
-      std::string_view sv(open.tokenPtr->second.begin(), len);
+      std::string_view sv(open.tokenIt->second.begin(), len);
 
       if (open.number == 0) {
-        open.tokenPtr->first = type + 1;
-        open.tokenPtr->second = sv;
+        open.tokenIt->first = type + 1;
+        open.tokenIt->second = sv;
         opener->prev->next = opener->next;
         opener->next->prev = opener->prev;
         opener->Detach();
       } else {
-        Tokens::iterator it =
-            std::find(candTokens.begin(), candTokens.end(), open.tokenPtr);
-        candTokens.insert(it + 1, std::make_shared<Token>(type + 1, sv));
+        candTokens.insert(std::next(open.tokenIt), Token(type + 1, sv));
       }
 
       if (close.number == 0) {
-        close.tokenPtr->first = type + 2;
-        close.tokenPtr->second = sv;
+        close.tokenIt->first = type + 2;
+        close.tokenIt->second = sv;
         cur->prev->next = cur->next;
         cur->next->prev = cur->prev;
         cur = cur->next;
         temp->Detach();
       } else {
-        Tokens::iterator it =
-            std::find(candTokens.begin(), candTokens.end(), close.tokenPtr);
-        candTokens.insert(it, std::make_shared<Token>(type + 2, sv));
+        candTokens.insert(close.tokenIt, Token(type + 2, sv));
       }
     }
 
@@ -147,7 +142,7 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
       openersBottom[static_cast<int>(cur->dsi.delim)] = cur->prev;
       if (cur->dsi.type != DelimiterType::Both) {
         std::shared_ptr<Node> temp = cur;
-        cur->dsi.tokenPtr->first = TokenType::Text;
+        cur->dsi.tokenIt->first = TokenType::Text;
         cur->prev->next = cur->next;
         cur->next->prev = cur->prev;
         cur = cur->next;
@@ -160,9 +155,9 @@ bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
 
   cur = head->next;
   while (cur != tail) {
-    cur->dsi.tokenPtr->first = TokenType::Text;
-    cur->dsi.tokenPtr->second =
-        std::string_view(cur->dsi.tokenPtr->second.begin(), cur->dsi.number);
+    cur->dsi.tokenIt->first = TokenType::Text;
+    cur->dsi.tokenIt->second =
+        std::string_view(cur->dsi.tokenIt->second.begin(), cur->dsi.number);
     cur = cur->next;
     cur->prev->Detach();
   }
@@ -198,7 +193,7 @@ void DelimiterStack::debug() {
         std::cout << "Both\t";
         break;
     }
-    std::cout << token.tokenPtr << std::endl;
+    std::cout << token.tokenIt._M_node << std::endl;
 
     cur = cur->next;
   }

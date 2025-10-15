@@ -9,15 +9,15 @@ class DelimiterStack {
  public:
   enum class Delimiter { Asteriks = 0, Underscore = 1 };
   enum class DelimiterType { Open, Close, Both };
-  typedef struct DelimiterStackItem {
+  struct DelimiterStackItem {
     Delimiter delim;
     size_t number;
     bool isActive;
     DelimiterType type;
-    std::shared_ptr<Token> tokenPtr;
-  } DelimiterStackItem;
+    Tokens::iterator tokenIt;
+  };
 
-  typedef struct Node {
+  struct Node {
     DelimiterStackItem dsi;
     std::shared_ptr<Node> next, prev;
 
@@ -26,7 +26,7 @@ class DelimiterStack {
          std::shared_ptr<Node> next,
          std::shared_ptr<Node> prev);
     void Detach();
-  } Node;
+  };
 
  public:
   DelimiterStack();

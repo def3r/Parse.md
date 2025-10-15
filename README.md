@@ -16,14 +16,14 @@ A Markdown parser library written in C++
 
 ```c++
 #include <iostream>
-#include "parse.h"
+#include "parsemd/parser.h"
 
 using namespace markdown;
 
 int main() {
   Parser p;
   p.Parse("### This is **strong** and *italic*");
-  Tree tree = p.GetRoot();
-  std::cout << Parser::DumpTree(tree);
+  Node root = p.GetRoot();
+  std::cout << Parser::DumpTree(root);
 }
 ```
