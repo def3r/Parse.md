@@ -1,13 +1,10 @@
-> [!NOTE]
-> CommonMark compliant improved version under development [@CommonMark branch](https://github.com/def3r/Parse.md/tree/CommonMark)
-
 # `Parse.md`
 A Markdown parser library for C++.
 
-<img width="1891" height="873" alt="Screenshot_20251002_123152" src="https://github.com/user-attachments/assets/685b7fe2-648b-44a0-977a-e3e411088c47" />
+<img width="1877" height="786" alt="Screenshot_20251016_215958" src="https://github.com/user-attachments/assets/5ab43efe-93cb-4650-87e8-33a63303a8af" />
 
 > [!WARNING]
-> *This library is incomplete and only supports a [subset](https://github.com/def3r/Parse.md/blob/main/parse.h#L11) of Markdown as of now.*
+> *This library only supports a [subset](https://github.com/def3r/Parse.md/blob/main/include/parsemd/types.h#L16) of Markdown as of now.*
 
 ## Features
 * `Parse.md` is small and lightweight.
@@ -15,7 +12,7 @@ A Markdown parser library for C++.
 * `Parse.md`'s AST allows to write small renderers or transpilers.
 
 ## Demo
-> For a detailed demo, see [demo.cpp](https://github.com/def3r/Parse.md/blob/main/demo.cpp)
+> For an elaborate demo, see [demo.cpp](https://github.com/def3r/Parse.md/blob/main/demo.cpp)
 
 ```c++
 #include <iostream>
