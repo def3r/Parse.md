@@ -27,10 +27,10 @@ struct Renderer {
   }
 
   void RenderContainer(const md::Container& node) {
-    cout << rr[node->type].first;
+    cout << rr[node->Type()].first;
     for (md::Node child : node->children)
       Render(child);
-    cout << rr[node->type].second;
+    cout << rr[node->Type()].second;
   }
 
   void RenderText(const md::Text& node) { std::cout << node->text; }

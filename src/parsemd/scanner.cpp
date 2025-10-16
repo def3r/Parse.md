@@ -71,9 +71,9 @@ std::string_view Scanner::CurrentLine() {
   if (begin_ == it_)
     return "";
   std::string_view::iterator it = it_;
-  while ((it - 1) != begin_ && *(it - 1) == '\n') {
-    --it;
-  }
+  // while ((it - 1) != begin_ && *(it - 1) == '\n') {
+  //   --it;
+  // }
   return std::string_view(begin_, std::distance(begin_, it));
 }
 

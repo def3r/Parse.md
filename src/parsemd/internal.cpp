@@ -104,7 +104,7 @@ void htrim(std::string_view& sv) {
   sv.remove_suffix(sv.size() - count - 1);
 }
 
-Tokens::iterator listIteratorAdvance(Tokens::iterator& it, int inc) {
+TokenList::iterator listIteratorAdvance(TokenList::iterator& it, int inc) {
   while (inc--) {
     ++it;
   }

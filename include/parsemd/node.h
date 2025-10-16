@@ -8,9 +8,12 @@ namespace markdown {
 struct NodeBase {
   NodeBase(TokenType type);
   // virtual ~NodeBase() = default;
-  // TokenType Type() const;
+  TokenType Type() const;
 
-  TokenType type;
+  friend class Parser;
+
+ private:
+  TokenType type_;
 };
 
 struct ContainerNode : public NodeBase {
@@ -48,16 +51,18 @@ std::shared_ptr<InlineNode> InlineNodePtr(Node node);
 std::shared_ptr<TextNode> TextNodePtr(Node node);
 
 inline bool IsHeading(Node node) {
-  return node && node->type >= TokenType::H1 && node->type <= TokenType::H6;
+  return node && node->Type() >= TokenType::H1 && node->Type() <= TokenType::H6;
 }
 inline bool IsBlock(Node node) {
-  return node && node->type >= TokenType::Root && node->type <= TokenType::H6;
+  return node && node->Type() >= TokenType::Root &&
+         node->Type() <= TokenType::H6;
 }
 inline bool IsInline(Node node) {
-  return node && node->type > TokenType::Text && node->type <= TokenType::Code;
+  return node && node->Type() > TokenType::Text &&
+         node->Type() <= TokenType::Code;
 }
 inline bool IsText(Node node) {
-  return node && node->type == TokenType::Text;
+  return node && node->Type() == TokenType::Text;
 }
 
 }  // namespace markdown

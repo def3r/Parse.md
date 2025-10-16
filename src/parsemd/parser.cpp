@@ -68,13 +68,13 @@ Node Parser::BuildParagraphBlock() {
     // paragraph ends
     size_t pos = line.find_first_not_of(' ');
     if (line.empty() || pos == std::string_view::npos) {
-      std::string_view text(begin, count - 1);
+      std::string_view text(begin, count);
       internal::htrim(text);
       paragraph->text = text;
       return std::static_pointer_cast<NodeBase>(paragraph);
     }
 
-    count += line.size() + 1;
+    count += line.size();
     line = scanner.ScanNextLine();
   }
 
@@ -95,19 +95,19 @@ void Parser::AnalyzeBlocks() {
   while (!scanner.End()) {
     blockType_ = BlockType::Root;
     Node child = BuildBlocks();
-    if (child->type != TokenType::None) {
+    if (child) {
       block_->children.push_back(child);
     }
   }
 }
 
-Node Parser::BuildInline(Tokens::iterator it) {
+Node Parser::BuildInline(TokenList::iterator it) {
   if (candTokens_.empty() || it == candTokens_.end())
     return {};
 
   TokenType type = it->first;
   if (type == TokenType::Text) {
-    Tokens::iterator begin = it;
+    TokenList::iterator begin = it;
     size_t count = 0;
     while (it != candTokens_.end() && it->first == TokenType::Text) {
       count += it->second.size();
@@ -121,12 +121,12 @@ Node Parser::BuildInline(Tokens::iterator it) {
 
   Inline b = std::make_shared<InlineNode>(TokenType::None);
   if (type == TokenType::Softbreak) {
-    b->type = TokenType::Softbreak;
+    b->type_ = TokenType::Softbreak;
     candTokens_.erase(it);
   }
 
   else if (type == TokenType::EmphOpen) {
-    b->type = TokenType::Emph;
+    b->type_ = TokenType::Emph;
     while (std::next(it)->first != TokenType::EmphClose) {
       b->children.push_back(BuildInline(std::next(it)));
     }
@@ -134,7 +134,7 @@ Node Parser::BuildInline(Tokens::iterator it) {
   }
 
   else if (type == TokenType::StrongOpen) {
-    b->type = TokenType::Strong;
+    b->type_ = TokenType::Strong;
     while (std::next(it)->first != TokenType::StrongClose) {
       b->children.push_back(BuildInline(std::next(it)));
     }
@@ -145,13 +145,13 @@ Node Parser::BuildInline(Tokens::iterator it) {
 }
 
 void Parser::AnalyzeInline() {
-  if (block_->type == TokenType::None) {
+  if (block_->type_ == TokenType::None) {
     return;
   }
 
   int count = 1;
   for (Node& node : block_->children) {
-    if (node->type < TokenType::Root || node->type > TokenType::H6) {
+    if (node->type_ < TokenType::Root || node->type_ > TokenType::H6) {
       continue;
     }
     Block block = BlockNodePtr(node);
@@ -223,7 +223,7 @@ void Parser::PushCandToken(size_t count) {
 
   // NOTE: push after validation of char c
   candTokens_.emplace_back(internal::GetMarker(lexeme), lexeme);
-  Tokens::iterator tokenPtr = std::prev(candTokens_.end());
+  TokenList::iterator tokenPtr = std::prev(candTokens_.end());
   char c = scanner.CurrentByte();
   char prev = scanner.At(Scanner::CurPos::Cur, -2);
   char next = scanner.At(Scanner::CurPos::Cur, count - 1);
@@ -313,21 +313,21 @@ Node Parser::GetRoot() {
   return GetBlock();
 }
 
-Tokens Parser::GetTokens() {
+TokenList Parser::GetTokens() {
   return candTokens_;
 }
 
 std::string Parser::DumpTree(const Node& node, int depth) {
   std::stringstream ss;
-  ss << std::string(depth * 2, ' ') << node->type;
-  if (IsText(node->type)) {
+  ss << std::string(depth * 2, ' ') << node->type_;
+  if (IsText(node->type_)) {
     ss << ' ' << std::quoted(TextNodePtr(node)->text);
     ss << "\n";
     return ss.str();
   }
 
   auto cnode = ContainerNodePtr(node);
-  if (IsBlock(node->type) && node->type != TokenType::Root) {
+  if (IsBlock(node->type_) && node->type_ != TokenType::Root) {
     auto bnode = BlockNodePtr(node);
     if (!bnode->text.empty()) {
       ss << ' ' << std::quoted(bnode->text);

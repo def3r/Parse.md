@@ -14,7 +14,7 @@ class DelimiterStack {
     size_t number;
     bool isActive;
     DelimiterType type;
-    Tokens::iterator tokenIt;
+    TokenList::iterator tokenIt;
   };
 
   struct Node {
@@ -33,7 +33,7 @@ class DelimiterStack {
   void Push(DelimiterStackItem dsi);
   void Clear();
   void debug();
-  bool ProcessEmphasis(Tokens& candTokens);
+  bool ProcessEmphasis(TokenList& candTokens);
 
  protected:
   std::shared_ptr<Node> head, tail, cur;

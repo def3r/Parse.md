@@ -27,13 +27,13 @@ class Parser {
   Node Parse(std::string_view);
   Node GetRoot();
 
-  Tokens GetTokens();
+  TokenList GetTokens();
 
   DelimiterStack delimStack = {};
   void AnalyzeInline();
   void PushCandToken();
   void PushCandToken(size_t);
-  Node BuildInline(Tokens::iterator it);
+  Node BuildInline(TokenList::iterator it);
 
   // static std::string DumpTree(const Tree&, int = 0);
   static std::string DumpTree(const Node&, int = 0);
@@ -43,7 +43,7 @@ class Parser {
 
   std::string document_;
   Scanner scanner = {};
-  Tokens candTokens_;
+  TokenList candTokens_ = {};
   std::shared_ptr<BlockNode> block_ = {};
   BlockType blockType_ = BlockType::Root;
 };

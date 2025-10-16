@@ -72,7 +72,8 @@ class Scanner;
 class Parser;
 
 using Token     = std::pair<TokenType, std::string_view>;
-using Tokens    = std::list<Token>;
+using Tokens    = std::vector<Token>;
+using TokenList = std::list<Token>;
 using Node      = std::shared_ptr<NodeBase>;
 using Nodes     = std::vector<Node>;
 using Container = std::shared_ptr<ContainerNode>;

@@ -4,7 +4,10 @@
 
 namespace markdown {
 
-NodeBase::NodeBase(TokenType type) : type(type) {}
+NodeBase::NodeBase(TokenType type) : type_(type) {}
+TokenType NodeBase::Type() const {
+  return type_;
+}
 
 ContainerNode::ContainerNode(TokenType type) : NodeBase(type) {}
 
@@ -19,7 +22,7 @@ TextNode::TextNode(TokenType type, std::string text)
 std::shared_ptr<ContainerNode> ContainerNodePtr(Node node) {
   if (!node.get())
     return nullptr;
-  if (IsText(node->type))
+  if (IsText(node))
     return nullptr;
   return std::static_pointer_cast<ContainerNode>(node);
 }
@@ -27,7 +30,7 @@ std::shared_ptr<ContainerNode> ContainerNodePtr(Node node) {
 std::shared_ptr<BlockNode> BlockNodePtr(Node node) {
   if (!node.get())
     return nullptr;
-  if (!IsBlock(node->type))
+  if (!IsBlock(node))
     return nullptr;
   return std::static_pointer_cast<BlockNode>(node);
 }
@@ -35,7 +38,7 @@ std::shared_ptr<BlockNode> BlockNodePtr(Node node) {
 std::shared_ptr<InlineNode> InlineNodePtr(Node node) {
   if (!node.get())
     return nullptr;
-  if (!IsInline(node->type) || IsText(node->type))
+  if (!IsInline(node) || IsText(node))
     return nullptr;
   return std::static_pointer_cast<InlineNode>(node);
 }
@@ -43,7 +46,7 @@ std::shared_ptr<InlineNode> InlineNodePtr(Node node) {
 std::shared_ptr<TextNode> TextNodePtr(Node node) {
   if (!node.get())
     return nullptr;
-  if (!IsText(node->type))
+  if (!IsText(node))
     return nullptr;
   return std::static_pointer_cast<TextNode>(node);
 }

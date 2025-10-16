@@ -21,7 +21,7 @@ target_include_directories(parsemd
 
 target_compile_options(parsemd
   PRIVATE
-    -Wall -Wextra
+    -Wall -Wextra -g
 )
 
 file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/parsemd/*.cpp)
@@ -30,5 +30,5 @@ target_sources(parsemd
     ${SOURCES}
 )
 
-# enable_testing()
-# add_subdirectory(./tests)
+enable_testing()
+add_subdirectory(./tests)

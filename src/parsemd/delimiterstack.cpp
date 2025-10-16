@@ -52,7 +52,7 @@ void DelimiterStack::Clear() {
 
 // https://spec.commonmark.org/0.31.2/#phase-2-inline-structure
 // https://spec.commonmark.org/0.31.2/#can-open-emphasis
-bool DelimiterStack::ProcessEmphasis(Tokens& candTokens) {
+bool DelimiterStack::ProcessEmphasis(TokenList& candTokens) {
   // NOTE: No Links or Image support yet
   stackBottom = head;
   openersBottom[0] = openersBottom[1] = stackBottom;

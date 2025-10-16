@@ -31,7 +31,7 @@ bool IsLeftFlanking(char prev, char next);
 bool IsRightFlanking(char prev, char next);
 
 void htrim(std::string_view& sv);
-Tokens::iterator listIteratorAdvance(Tokens::iterator& it, int inc);
+TokenList::iterator listIteratorAdvance(TokenList::iterator& it, int inc);
 
 }  // namespace internal
 
