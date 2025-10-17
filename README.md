@@ -9,7 +9,7 @@ A Markdown parser library for C++.
 ## Features
 * `Parse.md` is small and lightweight.
 - `Parse.md` abides by the [CommonMark Spec](https://spec.commonmark.org/0.31.2/).
-* `Parse.md`'s AST allows to write small renderers or transpilers.
+* `Parse.md`'s AST allows to write small renderers or format converters.
 
 ## Demo
 > For an elaborate demo, see [demo.cpp](https://github.com/def3r/Parse.md/blob/main/demo.cpp)

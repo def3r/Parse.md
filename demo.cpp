@@ -1,3 +1,7 @@
+// Example showing how to render Markdown:
+//  1. to HTML and
+//  2. to terminal (ANSI)
+
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -10,19 +14,27 @@ using namespace std;
 namespace md = markdown;
 
 const string CSI = "\033[";
-typedef unordered_map<md::TokenType, pair<string, string>> RenderRules;
+using RenderRules = unordered_map<md::TokenType, pair<string, string>>;
 
-void populateHTMLMap(RenderRules&);
-void populateANISMap(RenderRules&);
+// clang-format off
 struct Renderer {
-  Renderer(RenderRules& rr) : rr(rr) {}
+  Renderer(const RenderRules& rules) : rules(rules) {}
   void Render(const md::Node& node);
   void RenderContainer(const md::Container& node);
   void RenderText(const md::Text& node);
 
- private:
-  RenderRules& rr;
+ protected:
+  const RenderRules& rules;
 };
+struct HTMLRenderer : public Renderer {
+  HTMLRenderer();
+  static const RenderRules& HTMLRenderRules();
+};
+struct ANSIRenderer : public Renderer {
+  ANSIRenderer();
+  static const RenderRules& ANSIRenderRules();
+};
+// clang-format on
 
 struct Mode {
   bool tree = false;
@@ -31,14 +43,16 @@ struct Mode {
 };
 Mode getMode(int argc, char* argv[]);
 
+// demo.cpp
+// opts:
+//    tree
+//    ansi
+//    html
 int main(int argc, char* argv[]) {
   Mode mode = getMode(argc, argv);
 
-  // initialize renderer
-  RenderRules renderHTML, renderANSI;
-  populateHTMLMap(renderHTML);
-  populateANISMap(renderANSI);
-  Renderer html(renderHTML), ansi(renderANSI);
+  HTMLRenderer html;
+  ANSIRenderer ansi;
 
   string s = R"(# Heading 1
 Some Text under **Heading 1**
@@ -78,32 +92,6 @@ Mode getMode(int argc, char* argv[]) {
   return m;
 }
 
-void populateHTMLMap(RenderRules& m) {
-  m[md::TokenType::Text] = {"", ""};
-  m[md::TokenType::Strong] = {"<b>", "</b>"};
-  m[md::TokenType::Emph] = {"<i>", "</i>"};
-  m[md::TokenType::StrongEmph] = {"<b><i>", "</i></b>"};
-  m[md::TokenType::Paragraph] = {"<p>", "</p>\n"};
-
-  for (int i = 0; i <= 5; i++) {
-    m[md::TokenType::H1 + i] = {"<H" + to_string(i + 1) + ">",
-                                "</H" + to_string(i + 1) + ">\n"};
-  }
-}
-
-void populateANISMap(RenderRules& m) {
-  m[md::TokenType::Text] = {"", ""};
-  m[md::TokenType::Strong] = {CSI + "1m", CSI + "22m"};
-  m[md::TokenType::Emph] = {CSI + "3m", CSI + "23m"};
-  m[md::TokenType::StrongEmph] = {CSI + "1m" + CSI + "3m",
-                                  CSI + "23m" + CSI + "22m"};
-  m[md::TokenType::Paragraph] = {"", "\n\n"};
-
-  for (int i = 0; i <= 5; i++) {
-    m[md::TokenType::H1 + i] = {CSI + to_string(i + 31) + "m", CSI + "0m\n"};
-  }
-}
-
 void Renderer::Render(const md::Node& node) {
   if (!node) {
     return;
@@ -116,12 +104,60 @@ void Renderer::Render(const md::Node& node) {
 }
 
 void Renderer::RenderContainer(const md::Container& node) {
-  cout << rr[node->Type()].first;
+  cout << rules.at(node->Type()).first;
   for (md::Node child : node->children)
     Render(child);
-  cout << rr[node->Type()].second;
+  cout << rules.at(node->Type()).second;
 }
 
 void Renderer::RenderText(const md::Text& node) {
   std::cout << node->text;
 }
+
+HTMLRenderer::HTMLRenderer() : Renderer(HTMLRenderRules()) {}
+const RenderRules& HTMLRenderer::HTMLRenderRules() {
+  static RenderRules rules;
+  if (rules.size() == 0) {
+    rules[md::TokenType::Root] = rules[md::TokenType::Text] =
+        rules[md::TokenType::Softbreak] = {"", ""};
+    rules[md::TokenType::Strong] = {"<b>", "</b>"};
+    rules[md::TokenType::Emph] = {"<i>", "</i>"};
+    rules[md::TokenType::Paragraph] = {"<p>", "</p>\n"};
+
+    // clang-format off
+    for (int i = 0; i <= 5; i++) {
+      rules[md::TokenType::H1 + i] = {
+        "<H" + to_string(i + 1) + ">",
+        "</H" + to_string(i + 1) + ">\n"
+      };
+    }
+    // clang-format on
+  }
+  return rules;
+}
+
+// clang-format off
+ANSIRenderer::ANSIRenderer() : Renderer(ANSIRenderRules()) {}
+const RenderRules& ANSIRenderer::ANSIRenderRules() {
+  static RenderRules rules;
+  if (rules.size() == 0) {
+    rules[md::TokenType::Root] = rules[md::TokenType::Text] =
+        rules[md::TokenType::Softbreak] = {"", ""};
+    rules[md::TokenType::Strong] = {CSI + "1m", CSI + "22m"};
+    rules[md::TokenType::Emph] = {CSI + "3m", CSI + "23m"};
+    rules[md::TokenType::StrongEmph] = {
+      CSI + "1m" + CSI + "3m",
+      CSI + "23m" + CSI + "22m"
+    };
+    rules[md::TokenType::Paragraph] = {"", "\n\n"};
+
+    for (int i = 0; i <= 5; i++) {
+      rules[md::TokenType::H1 + i] = {
+        CSI + to_string(i + 31) + "m",
+        CSI + "0m\n"
+      };
+    }
+  }
+  return rules;
+}
+// clang-format on
