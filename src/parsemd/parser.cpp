@@ -43,7 +43,7 @@ Node Parser::BuildBlocks() {
           internal::GetMarker(marker) != TokenType::Text) {
         markdown::trim(line, pos + count + 1);
         Block node = std::make_shared<BlockNode>(internal::GetMarker(marker));
-        node->text = line;
+        node->text_ = line;
         return std::static_pointer_cast<NodeBase>(node);
       }
     }
@@ -70,7 +70,7 @@ Node Parser::BuildParagraphBlock() {
     if (line.empty() || pos == std::string_view::npos) {
       std::string_view text(begin, count);
       internal::htrim(text);
-      paragraph->text = text;
+      paragraph->text_ = text;
       return std::static_pointer_cast<NodeBase>(paragraph);
     }
 
@@ -80,7 +80,7 @@ Node Parser::BuildParagraphBlock() {
 
   std::string_view text(begin, count);
   internal::htrim(text);
-  paragraph->text = text;
+  paragraph->text_ = text;
   return std::static_pointer_cast<NodeBase>(paragraph);
 }
 
@@ -156,7 +156,7 @@ void Parser::AnalyzeInline() {
     }
     Block block = BlockNodePtr(node);
 
-    scanner.Init(block->text);
+    scanner.Init(block->text_);
     while (!scanner.End()) {
       char c = scanner.ScanNextByte();
       if (c == '\n') {
@@ -194,7 +194,7 @@ void Parser::AnalyzeInline() {
     while (!candTokens_.empty()) {
       block->children.push_back(BuildInline(candTokens_.begin()));
     }
-    block->text = {};
+    block->text_ = {};
     candTokens_ = {};
   }
 }
@@ -329,8 +329,8 @@ std::string Parser::DumpTree(const Node& node, int depth) {
   auto cnode = ContainerNodePtr(node);
   if (IsBlock(node->type_) && node->type_ != TokenType::Root) {
     auto bnode = BlockNodePtr(node);
-    if (!bnode->text.empty()) {
-      ss << ' ' << std::quoted(bnode->text);
+    if (!bnode->text_.empty()) {
+      ss << ' ' << std::quoted(bnode->text_);
     }
   }
 

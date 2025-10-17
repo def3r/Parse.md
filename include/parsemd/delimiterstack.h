@@ -17,17 +17,6 @@ class DelimiterStack {
     TokenList::iterator tokenIt;
   };
 
-  struct Node {
-    DelimiterStackItem dsi;
-    std::shared_ptr<Node> next, prev;
-
-    Node();
-    Node(DelimiterStackItem dsi,
-         std::shared_ptr<Node> next,
-         std::shared_ptr<Node> prev);
-    void Detach();
-  };
-
  public:
   DelimiterStack();
   void Push(DelimiterStackItem dsi);
@@ -36,9 +25,11 @@ class DelimiterStack {
   bool ProcessEmphasis(TokenList& candTokens);
 
  protected:
-  std::shared_ptr<Node> head, tail, cur;
-  std::shared_ptr<Node> stackBottom;
-  std::shared_ptr<Node> openersBottom[2];
+  using DelimStack = std::list<DelimiterStackItem>;
+
+  DelimStack stack_;
+  DelimStack::iterator dummy_, cur_, stackBottom_;
+  DelimStack::iterator openersBottom_[2];
 };
 
 }  // namespace markdown
