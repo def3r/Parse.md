@@ -33,6 +33,9 @@ Node Parser::BuildBlocks() {
     }
 
     size_t pos = line.find_first_not_of(' ');
+    if (pos == std::string_view::npos) {
+      continue;
+    }
     // lets not care about whitespace count rn (codeblock burn)
     if (line[pos] == '#') {
       Scanner scnr(line);

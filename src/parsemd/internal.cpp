@@ -96,6 +96,8 @@ void htrim(std::string_view& sv) {
   }
   sv.remove_prefix(count);
 
+  if (sv.size() == 0)
+    return;
   count = sv.size() - 1;
   it = sv.begin();
   while ((it + count) != sv.end() && IsWhitespace(*(it + count))) {

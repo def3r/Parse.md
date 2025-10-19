@@ -122,6 +122,18 @@ R"(Token::Root
   // clang-format on
 }
 
+TEST(BlockAnalysis, ParagraphTestEmptyNewlineWspc) {
+  Parser t;
+  t.AnalyzeBlocks("\n\n   \n\n");
+  Node root = t.GetRoot();
+  // clang-format off
+  ASSERT_EQ(
+    Parser::DumpTree(root),
+R"(Token::Root
+)");
+  // clang-format on
+}
+
 TEST(BlockAnalysis, ParagraphTest) {
   Parser t;
   t.AnalyzeBlocks(
