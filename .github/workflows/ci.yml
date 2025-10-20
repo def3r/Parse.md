@@ -1,21 +1,26 @@
 name: CTest CI
 
+
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+
       - name: Install Google Test
         run: sudo apt-get update && sudo apt-get install -y libgtest-dev cmake
+
 
       - name: Build Google Test
         run: |
@@ -24,11 +29,14 @@ jobs:
           sudo make
           sudo cp lib/*.a /usr/lib
 
+
       - name: Set up CMake build
-        run: cmake -S . -B build
+        run: cmake -S . -B build -DPARSEMD_BUILD_TESTS=ON
+
 
       - name: Build project
         run: cmake --build build
+
 
       - name: Run tests with CTest
         run: ctest --test-dir build --output-on-failure
