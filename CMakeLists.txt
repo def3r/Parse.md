@@ -1,3 +1,8 @@
+option(PARSEMD_DEBUG "Set to ON for debug build" OFF)
+option(PARSEMD_BUILD_TESTS "Set to ON to build tests" OFF)
+option(PARSEMD_DEV_WARNINGS "Enable compiler warnings and warnings as errors" OFF)
+option(PARSEMD_BUILD_BENCHMARK "Set to ON to build benchmark" OFF)
+
 cmake_minimum_required(VERSION 3.16)
 
 project(parsemd
@@ -19,10 +24,14 @@ target_include_directories(parsemd
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_compile_options(parsemd
-  PRIVATE
-    -Wall -Wextra -g
-)
+if (PARSEMD_DEBUG)
+  target_compile_options(parsemd PRIVATE -g)
+else()
+  target_compile_options(parsemd PRIVATE -O3)
+endif()
+if (PARSEMD_DEV_WARNINGS)
+  target_compile_options(parsemd PRIVATE -Wall -Wextra)
+endif()
 
 file(GLOB SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/parsemd/*.cpp)
 target_sources(parsemd
@@ -30,5 +39,11 @@ target_sources(parsemd
     ${SOURCES}
 )
 
-enable_testing()
-add_subdirectory(./tests)
+if (PARSEMD_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(./tests)
+endif()
+
+if (PARSEMD_BUILD_BENCHMARK)
+  add_subdirectory(./benchmark)
+endif()

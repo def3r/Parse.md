@@ -1,12 +1,13 @@
 cmake_minimum_required(VERSION 3.10)
+project(parsemd_tests)
+
 set(CMAKE_CXX_STANDARD 17)
 find_package(GTest REQUIRED)
 
 file(GLOB TESTFILES *.cpp)
-file(GLOB PARSEMDSRC ../src/parsemd/*.cpp)
-add_executable(test_markdown ${TESTFILES} ${PARSEMDSRC})
+add_executable(parsemd_tests ${TESTFILES})
 include_directories(${GTEST_INCLUDE_DIRS} ../include/)
-target_include_directories(test_markdown PRIVATE ../)
-target_link_libraries(test_markdown GTest::GTest GTest::Main pthread)
 
-add_test(NAME MarkdownTest COMMAND test_markdown)
+target_link_libraries(parsemd_tests GTest::GTest GTest::Main parsemd pthread)
+
+add_test(NAME MarkdownTest COMMAND parsemd_tests)
