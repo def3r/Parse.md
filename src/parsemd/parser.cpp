@@ -161,19 +161,23 @@ void Parser::AnalyzeInline() {
 
     scanner.Init(block->text_);
     while (!scanner.End()) {
-      char c = scanner.ScanNextByte();
+      char c = scanner.ScanForDelim();
       if (c == '\n') {
         PushCandToken();
         scanner.Flush();
         std::string_view lexeme = scanner.Scan(1, Scanner::CurPos::BeginIt);
         candTokens_.emplace_back(TokenType::Softbreak, lexeme);
         scanner.FlushBytes(1);
+
       } else if (internal::IsDelimiter(c)) {
         count = scanner.LookAhead(Scanner::CurPos::Cur, -1);
-        if (internal::IsValidDelimiter(
-                scanner.At(Scanner::CurPos::Cur, -2), c,
-                scanner.At(Scanner::CurPos::Cur, count - 1))) {
-          PushCandToken(count);
+        char prev = scanner.At(Scanner::CurPos::Cur, -2);
+        char next = scanner.At(Scanner::CurPos::Cur, count - 1);
+
+        bool isLeftFlank = internal::IsLeftFlanking(prev, next);
+        bool isRightFlank = internal::IsRightFlanking(prev, next);
+        if (isLeftFlank | isRightFlank) {
+          PushCandToken(count, prev, next, isLeftFlank, isRightFlank);
         } else {
           scanner.SkipNextBytes(count - 1);
         }
@@ -209,7 +213,11 @@ void Parser::PushCandToken() {
   }
 }
 
-void Parser::PushCandToken(size_t count) {
+void Parser::PushCandToken(size_t count,
+                           char prev,
+                           char next,
+                           bool leftFlank,
+                           bool rightFlank) {
   std::string_view lexeme = scanner.CurrentLine();
   if (!lexeme.empty()) {
     lexeme.remove_suffix(1);
@@ -228,8 +236,6 @@ void Parser::PushCandToken(size_t count) {
   candTokens_.emplace_back(internal::GetMarker(lexeme), lexeme);
   TokenList::iterator tokenPtr = std::prev(candTokens_.end());
   char c = scanner.CurrentByte();
-  char prev = scanner.At(Scanner::CurPos::Cur, -2);
-  char next = scanner.At(Scanner::CurPos::Cur, count - 1);
 
   DelimiterStack::DelimiterStackItem dsi = {
       .delim = (c == '*') ? DelimiterStack::Delimiter::Asteriks
@@ -242,49 +248,23 @@ void Parser::PushCandToken(size_t count) {
 
   if (c == '*') {
     int state = 0;
-    if (internal::IsLeftFlanking(prev, next)) {
+    if (leftFlank) {
       state++;
     }
-    if (internal::IsRightFlanking(prev, next)) {
+    if (rightFlank) {
       state += 2;
     }
-
-    switch (state) {
-      case 1:
-        dsi.type = DelimiterStack::DelimiterType::Open;
-        break;
-      case 2:
-        dsi.type = DelimiterStack::DelimiterType::Close;
-        break;
-      case 3:
-        dsi.type = DelimiterStack::DelimiterType::Both;
-        break;
-    }
+    dsi.type = DelimiterStack::DelimiterType::Open + (state - 1);
 
   } else if (c == '_') {
     int state = 0;
-    if (internal::IsLeftFlanking(prev, next) &&
-        (!internal::IsRightFlanking(prev, next) ||
-         internal::IsPunctuation(prev))) {
+    if (leftFlank && (!rightFlank || internal::IsPunctuation(prev))) {
       state++;
     }
-    if (internal::IsRightFlanking(prev, next) &&
-        (!internal::IsLeftFlanking(prev, next) ||
-         internal::IsPunctuation(next))) {
+    if (rightFlank && (!leftFlank || internal::IsPunctuation(next))) {
       state += 2;
     }
-
-    switch (state) {
-      case 1:
-        dsi.type = DelimiterStack::DelimiterType::Open;
-        break;
-      case 2:
-        dsi.type = DelimiterStack::DelimiterType::Close;
-        break;
-      case 3:
-        dsi.type = DelimiterStack::DelimiterType::Both;
-        break;
-    }
+    dsi.type = DelimiterStack::DelimiterType::Open + (state - 1);
 
   } else {
     std::cerr << "Unhandled Delimiter " << std::quoted(std::to_string(c))

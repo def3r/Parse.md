@@ -32,6 +32,9 @@ class DelimiterStack {
   DelimStack::iterator openersBottom_[2];
 };
 
+DelimiterStack::DelimiterType operator+(DelimiterStack::DelimiterType dt,
+                                        int n);
+
 }  // namespace markdown
 
 #endif  // !PARSEMD_DELIMITERSTACK_H_

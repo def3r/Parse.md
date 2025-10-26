@@ -13,6 +13,7 @@ class Scanner {
   Scanner(std::string_view data);
   void Init(std::string_view data);
   char ScanNextByte();
+  char ScanForDelim();
   char CurrentByte();
   std::string_view ScanNextLine();
   std::string_view CurrentLine();
@@ -35,7 +36,7 @@ class Scanner {
   bool updateBegin_ = false;
   bool followedByWhiteSpace_ = false;
 
-  std::string_view::iterator GetIterator(CurPos curPos);
+  inline std::string_view::iterator GetIterator(CurPos curPos);
   bool ValidArgs(int offset, std::string_view::iterator);
 };
 

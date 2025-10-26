@@ -39,6 +39,19 @@ char Scanner::ScanNextByte() {
   return End() ? '\0' : *(it_++);
 }
 
+char Scanner::ScanForDelim() {
+  // static constexpr auto dlm = "\n*_";
+
+  while (it_ != data_.end()) {
+    if ((*it_ == '*') | (*it_ == '_') | (*it_ == '\n')) {
+      break;
+    }
+    ++it_;
+  }
+
+  return End() ? '\0' : *(it_++);
+}
+
 char Scanner::CurrentByte() {
   if (it_ == begin_) {
     return '\0';
@@ -128,7 +141,7 @@ int Scanner::LookAhead(CurPos curPos, int offset) {
   return count;
 }
 
-std::string_view::iterator Scanner::GetIterator(CurPos curPos) {
+inline std::string_view::iterator Scanner::GetIterator(CurPos curPos) {
   switch (curPos) {
     case CurPos::Begin:
       return data_.begin();

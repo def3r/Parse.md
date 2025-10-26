@@ -1,6 +1,6 @@
 option(PARSEMD_DEBUG "Set to ON for debug build" OFF)
 option(PARSEMD_BUILD_TESTS "Set to ON to build tests" OFF)
-option(PARSEMD_DEV_WARNINGS "Enable compiler warnings and warnings as errors" OFF)
+option(PARSEMD_DEV_WARNINGS "Set to OFF to disable compiler warnings and warnings as errors" ON)
 option(PARSEMD_BUILD_BENCHMARK "Set to ON to build benchmark" OFF)
 
 cmake_minimum_required(VERSION 3.16)
@@ -25,7 +25,7 @@ target_include_directories(parsemd
 )
 
 if (PARSEMD_DEBUG)
-  target_compile_options(parsemd PRIVATE -g)
+  target_compile_options(parsemd PRIVATE -g -fno-omit-frame-pointer -rdynamic)
 else()
   target_compile_options(parsemd PRIVATE -O3)
 endif()

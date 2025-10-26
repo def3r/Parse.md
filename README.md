@@ -7,21 +7,21 @@ A Markdown parser library for C++.
 > *This library only supports a [subset](https://github.com/def3r/Parse.md/blob/main/include/parsemd/types.h#L16) of Markdown as of now.*
 
 ## Features
-* `Parse.md` is small and lightweight.
+* `Parse.md` is small, lightweight and fast.
 - `Parse.md` abides by the [CommonMark Spec](https://spec.commonmark.org/0.31.2/).
 * `Parse.md`'s AST allows to write small renderers or format converters.
 
 ## Benchmark
-> Benchmark, as run on 12th Gen Intel Core i5-12500H(4.5 GHz max) runnin Arch Linux(kernel 6.16.4), compiled with g++(15.2.1) after compiler optimizations (Release build)
+Benchmark, as run on 12th Gen Intel Core i5-12500H (4.5 GHz max) runnin Arch Linux (kernel 6.16.4), compiled with g++ (15.2.1) after compiler optimizations (Release build)
 
-Throughput: 21 MB/s
+Throughput: 22 MB/s
 
 | Benchmark | Time | CPU | Iterations |
 |:----------|-----:|----:|-----------:|
-| ParseMd Empty String  |    0.038 us |        0.038 us  |  18497943 |
-| ParseMd Simple String |     4.17 us |       4.17 us    |  168443 |
-| ParseMd 100KB         |     4572 us |       4562 us    |     155 |
-| ParseMd 1MB           |    49430 us |      49317 us    |      14 |
+| ParseMd Empty String |0.036 us | 0.036 us | 19429443 |
+| ParseMd Simple String | 3.53 us | 3.53 us | 198560 |
+| ParseMd 100KB | 4222 us | 4214 us | 166 |
+| ParseMd 1MB | 44227 us | 44136 us | 16 |
 
 
 ## Demo

@@ -32,7 +32,11 @@ class Parser {
   DelimiterStack delimStack = {};
   void AnalyzeInline();
   void PushCandToken();
-  void PushCandToken(size_t);
+  void PushCandToken(size_t count,
+                     char prev,
+                     char next,
+                     bool leftFlank,
+                     bool rightFlank);
   Node BuildInline(TokenList::iterator it);
 
   // static std::string DumpTree(const Tree&, int = 0);

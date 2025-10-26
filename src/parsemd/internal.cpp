@@ -45,7 +45,7 @@ bool IsValidDelimiter(char prev, char delim, char next) {
 }
 
 bool IsWhitespace(char c) {
-  return (c == ' ' || c == '\t' || c == '\n' || c == '\r') ? true : false;
+  return ((c == ' ') | (c == '\t') | (c == '\n') | (c == '\r'));
 }
 
 bool IsPunctuation(char c) {

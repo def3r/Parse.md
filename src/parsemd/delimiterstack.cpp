@@ -6,6 +6,14 @@
 
 namespace markdown {
 
+DelimiterStack::DelimiterType operator+(DelimiterStack::DelimiterType dt,
+                                        int n) {
+  if (n >= 3 || n < 0) {
+    return DelimiterStack::DelimiterType::Open;
+  }
+  return static_cast<DelimiterStack::DelimiterType>(static_cast<int>(dt) + n);
+}
+
 DelimiterStack::DelimiterStack() {
   stack_ = {DelimiterStackItem{}};
   dummy_ = cur_ = stack_.begin();
